@@ -7,7 +7,7 @@ import tensorflow as tf
 
 sys.path.append('..')
 
-from Networks import discriminatorModel, generatorModel
+from Pix2PixNetworks import discriminatorModel, generatorModel
 from utils.DataLoaders import imgPartition, imgLoader
 from utils.TrainFuncs import trainStep
 
