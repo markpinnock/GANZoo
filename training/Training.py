@@ -70,7 +70,7 @@ for epoch in range(EPOCHS):
     discTrainMetric1.reset_states()
     discTrainMetric2.reset_states()
 
-    pred = Generator(SEED, training=True).numpy()
+    pred = Generator(NCE_test, training=True).numpy()
 
     fig, axs = plt.subplots(4, 4, figsize=(20, 20))
 

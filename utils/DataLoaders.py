@@ -3,7 +3,7 @@ import os
 import tensorflow as tf
 
 
-def imgLoader(file_path, img_list):
+def imgLoader(file_path, ACE_list, NCE_list):
     file_path = file_path.decode("utf-8")
     ACE_path = f"{file_path}ACE/"
     NCE_path = f"{file_path}NCE/"
