@@ -12,11 +12,12 @@ from utils.DataLoaders import imgPartition, imgLoader
 from utils.TrainFuncs import trainStep
 
 
-FILE_PATH = "C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/Train/"
+FILE_PATH = "C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/GANImages/"
+# FILE_PATH = "D:/VAEImages/"
 SAVE_PATH = "C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/imgs/"
-MB_SIZE = 16
+MB_SIZE = 4
 EPOCHS = 50
-NOISE_DIM = 100
+NOISE_DIM = 256
 NUM_EX = 16
 SEED = tf.random.uniform([NUM_EX, NOISE_DIM], -1, 1)
 
@@ -72,5 +73,6 @@ for epoch in range(EPOCHS):
         plt.imshow(pred[i, :, :, 0], cmap='gray')
         plt.axis('off')
 
-    plt.savefig(SAVE_PATH + 'image_at_epoch_{:04d}.png'.format(epoch + 1), dpi=250)
-    plt.close()
+    # plt.savefig(SAVE_PATH + 'image_at_epoch_{:04d}.png'.format(epoch + 1), dpi=250)
+    # plt.close()
+    plt.show()

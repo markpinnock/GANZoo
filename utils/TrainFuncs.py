@@ -38,8 +38,8 @@ def trainStep(
         real_pred = Discriminator(imgs + tf.random.normal(imgs.shape.as_list(), 0, 1), training=True)
         fake_pred = Discriminator(gen_img + tf.random.normal(gen_img.shape.as_list(), 0, 1), training=True)
         
-        gen_losses = genLossDC(fake_pred)
-        disc_losses = discLossDC(real_pred, fake_pred)
+        gen_losses = genLossLS(fake_pred)
+        disc_losses = discLossLS(real_pred, fake_pred)
 
     gen_gradients = gen_tape.gradient(gen_losses, Generator.trainable_variables)
     disc_gradients = disc_tape.gradient(disc_losses, Discriminator.trainable_variables)

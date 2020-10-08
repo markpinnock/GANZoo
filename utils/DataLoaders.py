@@ -12,7 +12,7 @@ def imgLoader(file_path, img_list):
         img = np.load(file_path + img_list[i])
         img = (img - img.min()) / (img.max() - img.min()) * 2 - 1
         i += 1
-        yield img[::1, ::1, tf.newaxis]
+        yield img[::4, ::4, tf.newaxis]
 
 
 def imgPartition(file_path, partition_file):
