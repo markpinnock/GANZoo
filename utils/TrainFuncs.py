@@ -34,12 +34,12 @@ def trainStep(
     noise = tf.random.uniform((mb_size, noise_dim), -1, 1)
 
     with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
-        gen_img = Generator(noise, training=True)
-        real_pred = Discriminator(imgs + tf.random.normal(imgs.shape.as_list(), 0, 1), training=True)
-        fake_pred = Discriminator(gen_img + tf.random.normal(gen_img.shape.as_list(), 0, 1), training=True)
+        gen_ACE = Generator(NCE_img, training=True)
+        real_pred = Discriminator([NCE_img, ACE_img], training=True)
+        fake_pred = Discriminator([gen_ACE, ACE_img], training=True)
         
-        gen_losses = genLossLS(fake_pred)
-        disc_losses = discLossLS(real_pred, fake_pred)
+        gen_losses = genLossDC(fake_pred)
+        disc_losses = discLossDC(real_pred, fake_pred)
 
     gen_gradients = gen_tape.gradient(gen_losses, Generator.trainable_variables)
     disc_gradients = disc_tape.gradient(disc_losses, Discriminator.trainable_variables)
@@ -47,9 +47,8 @@ def trainStep(
     DiscOptimiser.apply_gradients(zip(disc_gradients, Discriminator.trainable_variables))
 
     genMetric.update_state(tf.ones_like(fake_pred), fake_pred)
+    gen_MAE = tf.reduce_mean(tf.abs(gen_ACE - ACE_img))
     discMetric1.update_state(tf.ones_like(real_pred), real_pred)
     discMetric2.update_state(tf.zeros_like(fake_pred), fake_pred)
-    discAcc1.update_state(tf.ones_like(real_pred), real_pred)
-    discAcc2.update_state(tf.zeros_like(fake_pred), fake_pred)
 
     return gen_gradients, disc_gradients

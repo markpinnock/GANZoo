@@ -28,6 +28,9 @@ N = len(train_list)
 train_ds = tf.data.Dataset.from_generator(
     imgLoader, args=[FILE_PATH, train_list], output_types=tf.float32).batch(MB_SIZE).prefetch(MB_SIZE)
 
+train_ds = tf.data.Dataset.from_generator(
+    imgLoader, args=[FILE_PATH, train_list], output_types=tf.float32).batch(MB_SIZE).prefetch(MB_SIZE)
+
 Generator = generatorModel()
 Discriminator = discriminatorModel()
 print(Generator.summary())
@@ -36,8 +39,6 @@ print(Discriminator.summary())
 genTrainMetric = keras.metrics.BinaryCrossentropy(from_logits=True)
 discTrainMetric1 = keras.metrics.BinaryCrossentropy(from_logits=True)
 discTrainMetric2 = keras.metrics.BinaryCrossentropy(from_logits=True)
-discTrainAcc1 = keras.metrics.Accuracy()
-discTrainAcc2 = keras.metrics.Accuracy()
 
 GenOptimiser = keras.optimizers.Adam(2e-4, 0.5, 0.999)
 DiscOptimiser = keras.optimizers.Adam(2e-4, 0.5, 0.999)
@@ -59,10 +60,9 @@ for epoch in range(EPOCHS):
     # print("==============================================================================")
 
     genTrainMetric.reset_states()
+    gen_MAE = 0
     discTrainMetric1.reset_states()
     discTrainMetric2.reset_states()
-    discTrainAcc1.reset_states()
-    discTrainAcc2.reset_states()
 
     pred = Generator(SEED, training=True)
 
