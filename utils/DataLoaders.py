@@ -3,7 +3,23 @@ import os
 import tensorflow as tf
 
 
-def imgLoader(file_path, img_list):
+def dev_img_loader(file_path, img_list):
+    # To merge with img_loader
+    np.random.shuffle(img_list)
+    N = len(img_list)
+    i = 0
+
+    while i < N:
+        img = tf.io.read_file(file_path + img_list[i])
+        img = tf.image.decode_jpeg(img, channels=3)
+        img = tf.image.convert_image_dtype(img, tf.float32)
+        img = (img * 2) - 1
+        img = tf.image.resize(img, (128, 128))
+        i += 1
+        yield img
+
+
+def img_loader(file_path, img_list):
     np.random.shuffle(img_list)
     N = len(img_list)
     i = 0

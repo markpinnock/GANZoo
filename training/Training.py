@@ -7,35 +7,29 @@ import tensorflow as tf
 
 sys.path.append('..')
 
-from Networks import discriminatorModel, generatorModel
-from utils.DataLoaders import imgPartition, imgLoader
+from GAN import GAN
+from utils.DataLoaders import imgPartition, dev_img_loader, img_loader
 from utils.TrainFuncs import trainStep
 
-
-FILE_PATH = "C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/GANImages/"
-# FILE_PATH = "D:/VAEImages/"
+# Dev dataset
+IMG_PATH = "C:/Users/roybo/OneDrive/Documents/CelebFacesSmall/Imgs/Imgs/"
+# IMG_PATH = "D:/VAEImages/"
 SAVE_PATH = "C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/imgs/"
-MB_SIZE = 4
-EPOCHS = 50
-NOISE_DIM = 256
-NUM_EX = 16
-SEED = tf.random.uniform([NUM_EX, NOISE_DIM], -1, 1)
 
-# train_list, val_list, test_list = imgPartition(FILE_PATH, PARTITION_FILE)
-train_list = os.listdir(FILE_PATH)
+# Set hyperparameters and example latent sample
+MB_SIZE = 64
+EPOCHS = 50
+LATENT_DIM = 128
+NUM_EX = 16
+LATENT_SAMPLE = tf.random.normal([NUM_EX, NOISE_DIM], dtype=tf.float32)
+
+train_list = os.listdir(IMG_PATH)
 N = len(train_list)
 
 train_ds = tf.data.Dataset.from_generator(
-    imgLoader, args=[FILE_PATH, train_list], output_types=tf.float32).batch(MB_SIZE).prefetch(MB_SIZE)
+    dev_img_loader, args=[IMG_PATH, train_list], output_types=tf.float32).batch(MB_SIZE).prefetch(MB_SIZE)
 
-train_ds = tf.data.Dataset.from_generator(
-    imgLoader, args=[FILE_PATH, train_list], output_types=tf.float32).batch(MB_SIZE).prefetch(MB_SIZE)
-
-Generator = generatorModel()
-Discriminator = discriminatorModel()
-print(Generator.summary())
-print(Discriminator.summary())
-
+Model = Gan(LATENT_DIM)
 genTrainMetric = keras.metrics.BinaryCrossentropy(from_logits=True)
 discTrainMetric1 = keras.metrics.BinaryCrossentropy(from_logits=True)
 discTrainMetric2 = keras.metrics.BinaryCrossentropy(from_logits=True)
