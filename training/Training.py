@@ -15,58 +15,75 @@ from utils.TrainFuncs import trainStep
 IMG_PATH = "C:/Users/roybo/OneDrive/Documents/CelebFacesSmall/Imgs/Imgs/"
 # IMG_PATH = "D:/VAEImages/"
 SAVE_PATH = "C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/imgs/"
+# RES = "LS128x128_Small_100"
+EXPT = "test"
+
+if not os.path.exists(f"{SAVE_PATH}{EXPT}/"):
+    os.mkdir(f"{SAVE_PATH}{EXPT}/")
 
 # Set hyperparameters and example latent sample
 MB_SIZE = 64
-EPOCHS = 50
+EPOCHS = 100
 LATENT_DIM = 128
 NUM_EX = 16
-LATENT_SAMPLE = tf.random.normal([NUM_EX, NOISE_DIM], dtype=tf.float32)
+NC = 64
+G_ETA = 2e-4
+D_ETA = 2e-4
 
+LATENT_SAMPLE = tf.random.normal([NUM_EX, LATENT_DIM], dtype=tf.float32)
+
+# Create dataset
 train_list = os.listdir(IMG_PATH)
+train_list = train_list[0:1000]
 N = len(train_list)
 
 train_ds = tf.data.Dataset.from_generator(
     dev_img_loader, args=[IMG_PATH, train_list], output_types=tf.float32).batch(MB_SIZE).prefetch(MB_SIZE)
 
-Model = Gan(LATENT_DIM)
-genTrainMetric = keras.metrics.BinaryCrossentropy(from_logits=True)
-discTrainMetric1 = keras.metrics.BinaryCrossentropy(from_logits=True)
-discTrainMetric2 = keras.metrics.BinaryCrossentropy(from_logits=True)
+# Create optimisers and compile model
+GOptimiser = keras.optimizers.Adam(G_ETA, 0.5, 0.999)
+DOptimiser = keras.optimizers.Adam(D_ETA, 0.5, 0.999)
+Model = GAN(
+    latent_dims=LATENT_DIM,
+    g_nc=NC, d_nc=NC,
+    g_optimiser=GOptimiser,
+    d_optimiser=DOptimiser)
 
-GenOptimiser = keras.optimizers.Adam(2e-4, 0.5, 0.999)
-DiscOptimiser = keras.optimizers.Adam(2e-4, 0.5, 0.999)
-
+# Training loop
 for epoch in range(EPOCHS):
+    Model.g_metric.reset_states()
+    Model.d_metric.reset_states()
+
     for imgs in train_ds:
-        gen_grad, disc_grad = trainStep(
-            imgs, Generator, Discriminator, GenOptimiser, DiscOptimiser,
-            MB_SIZE, NOISE_DIM, genTrainMetric, discTrainMetric1,
-            discTrainMetric2, discTrainAcc1, discTrainAcc2)
+        losses = Model.train_step(imgs)
+        # g_loss += losses["g_loss"]
+        # d_loss += losses["d_loss"]
 
-    gen_grad_norm = tf.linalg.global_norm(gen_grad)
-    disc_grad_norm = tf.linalg.global_norm(disc_grad)
+    print(f"Ep {epoch + 1}, G: {Model.g_metric.result():.4f}, D: {Model.d_metric.result():.4f}")
 
-    # print("==============================================================================")
-    print(f"Ep {epoch + 1}, Gen Loss {genTrainMetric.result():.4f} Disc Loss 1 {discTrainMetric1.result():.4f} "\
-        f"Disc Loss 2 {discTrainMetric2.result():.4f} Disc Acc 1 {discTrainAcc1.result():.4f} Disc Acc 2 {discTrainAcc2.result():.4f} "\
-        f"Gen Grad {gen_grad_norm} Disc Grad {disc_grad_norm}")
-    # print("==============================================================================")
+    # Generate example images
+    if (epoch + 1) % 1 == 0:
+        pred = Model.Generator(LATENT_SAMPLE, training=False)
 
-    genTrainMetric.reset_states()
-    gen_MAE = 0
-    discTrainMetric1.reset_states()
-    discTrainMetric2.reset_states()
+        fig = plt.figure(figsize=(4,4))
 
-    pred = Generator(SEED, training=True)
+        for i in range(pred.shape[0]):
+            plt.subplot(4, 4, i+1)
+            plt.imshow(pred[i, :, :, :] / 2 + 0.5)
+            plt.axis('off')
 
-    fig = plt.figure(figsize=(4,4))
+        plt.tight_layout()
+        plt.savefig(f"{SAVE_PATH}{EXPT}/image_at_epoch_{epoch + 1:04d}.png", dpi=250)
+        plt.close()
 
-    for i in range(pred.shape[0]):
-        plt.subplot(4, 4, i+1)
-        plt.imshow(pred[i, :, :, 0], cmap='gray')
-        plt.axis('off')
+    # Save checkpoint
+    # if (epoch + 1) % 10 == 0:
+    #     check_path = f"{SAVE_PATH}models/{RES}/"
 
-    # plt.savefig(SAVE_PATH + 'image_at_epoch_{:04d}.png'.format(epoch + 1), dpi=250)
-    # plt.close()
-    plt.show()
+    #     if not os.path.exists(check_path):
+    #         os.mkdir(check_path)
+        
+    #     G_check_name = f"{SAVE_PATH}models/{RES}/G_{epoch + 1:04d}.ckpt"
+    #     D_check_name = f"{SAVE_PATH}models/{RES}/D_{epoch + 1:04d}.ckpt"
+    #     Generator.save_weights(G_check_name)
+    #     Discriminator.save_weights(D_check_name)

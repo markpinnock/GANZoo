@@ -13,15 +13,15 @@ def least_square_loss(labels, predictions):
 
 
 class Discriminator(keras.Model):
-    def __init__(self, d_nc):
+    def __init__(self, d_nc, initialiser):
         super(Discriminator, self).__init__()
-        self.init = super(Generator, self).initialiser
+        self.initialiser = initialiser
 
-        self.conv1 = keras.layers.Conv2D(d_nc, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
-        self.conv2 = keras.layers.Conv2D(d_nc * 2, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
-        self.conv3 = keras.layers.Conv2D(d_nc * 4, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
-        self.conv4 = keras.layers.Conv2D(d_nc * 8, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
-        self.conv5 = keras.layers.Conv2D(1, (4, 4), strides=(1, 1), padding='VALID', use_bias=True, kernel_initializer=init)
+        self.conv1 = keras.layers.Conv2D(d_nc, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser)
+        self.conv2 = keras.layers.Conv2D(d_nc * 2, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser)
+        self.conv3 = keras.layers.Conv2D(d_nc * 4, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser)
+        self.conv4 = keras.layers.Conv2D(d_nc * 8, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser)
+        self.conv5 = keras.layers.Conv2D(1, (4, 4), strides=(1, 1), padding='VALID', use_bias=True, kernel_initializer=self.initialiser)
 
         self.bn2 = keras.layers.BatchNormalization()
         self.bn3 = keras.layers.BatchNormalization()
@@ -33,20 +33,20 @@ class Discriminator(keras.Model):
         h3 = tf.nn.leaky_relu(self.bn3(self.conv3(h2), training=training), alpha=0.2)
         h4 = tf.nn.leaky_relu(self.bn4(self.conv4(h3), training=training), alpha=0.2)
 
-        return tf.squeeze(self.conv5(h6))
+        return tf.squeeze(self.conv5(h4))
 
 
 class Generator(keras.Model):
-    def __init__(self, latent_dims, g_nc):
+    def __init__(self, latent_dims, g_nc, initialiser):
         super(Generator, self).__init__()
-        self.init = super(Generator, self).initialiser
+        self.initialiser = initialiser
 
         self.reshaped = keras.layers.Reshape((1, 1, latent_dims))
-        self.tconv1 = keras.layers.Conv2DTranspose(g_nc * 8, (4, 4), strides=(1, 1), padding='VALID', use_bias=True, kernel_initializer=init)
-        self.tconv2 = keras.layers.Conv2DTranspose(g_nc * 4, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
-        self.tconv3 = keras.layers.Conv2DTranspose(g_nc * 2, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
-        self.tconv4 = keras.layers.Conv2DTranspose(g_nc, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
-        self.tconv5 = keras.layers.Conv2DTranspose(3, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
+        self.tconv1 = keras.layers.Conv2DTranspose(g_nc * 8, (4, 4), strides=(1, 1), padding='VALID', use_bias=True, kernel_initializer=self.initialiser)
+        self.tconv2 = keras.layers.Conv2DTranspose(g_nc * 4, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser)
+        self.tconv3 = keras.layers.Conv2DTranspose(g_nc * 2, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser)
+        self.tconv4 = keras.layers.Conv2DTranspose(g_nc, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser)
+        self.tconv5 = keras.layers.Conv2DTranspose(3, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser)
 
         self.bn1 = keras.layers.BatchNormalization()
         self.bn2 = keras.layers.BatchNormalization()
@@ -60,7 +60,7 @@ class Generator(keras.Model):
         h3 = tf.nn.relu(self.bn3(self.tconv3(h2), training=training))
         h4 = tf.nn.relu(self.bn4(self.tconv4(h3), training=training))
 
-        return tf.nn.tanh(self.tconv6(h4))
+        return tf.nn.tanh(self.tconv5(h4))
 
 
 class GAN(keras.Model):
@@ -90,8 +90,8 @@ class GAN(keras.Model):
         self.loss = self.loss_dict["original"]
         self.g_metric = self.metric_dict["original"][0]
         self.d_metric = self.metric_dict["original"][1]
-        self.Generator = Generator(latent_dims, g_nc)
-        self.Discriminator = Discriminator(d_nc)
+        self.Generator = Generator(latent_dims, g_nc, self.initialiser)
+        self.Discriminator = Discriminator(d_nc, self.initialiser)
         self.g_optimiser = g_optimiser
         self.d_optimiser = d_optimiser
     
@@ -107,7 +107,7 @@ class GAN(keras.Model):
         d_fake_images = self.Generator(noise, training=True)
         d_labels = tf.concat([tf.ones((mb_size, 1)), tf.zeros((mb_size, 1))], axis=0)
 
-        # ADD NOISE TO LABELS AND/OR IMAGES
+        # TODO: ADD NOISE TO LABELS AND/OR IMAGES
 
         with tf.GradientTape() as d_tape:
             d_pred_fake = self.Discriminator(d_fake_images, training=True)
@@ -122,7 +122,7 @@ class GAN(keras.Model):
 
         noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
         g_labels = tf.zeros((mb_size, 1))
-        # ADD NOISE TO LABELS AND/OR IMAGES
+        # TODO: ADD NOISE TO LABELS AND/OR IMAGES
 
         with tf.GradientTape() as g_tape:
             g_fake_images = self.Generator(noise, training=True)

@@ -14,7 +14,7 @@ def dev_img_loader(file_path, img_list):
         img = tf.image.decode_jpeg(img, channels=3)
         img = tf.image.convert_image_dtype(img, tf.float32)
         img = (img * 2) - 1
-        img = tf.image.resize(img, (128, 128))
+        img = tf.image.resize(img, (64, 64))
         i += 1
         yield img
 
