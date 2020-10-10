@@ -9,7 +9,6 @@ sys.path.append('..')
 
 from GAN import GAN
 from utils.DataLoaders import imgPartition, dev_img_loader, img_loader
-from utils.TrainFuncs import trainStep
 
 # Dev dataset
 IMG_PATH = "C:/Users/roybo/OneDrive/Documents/CelebFacesSmall/Imgs/Imgs/"
@@ -31,6 +30,7 @@ G_ETA = 2e-4
 D_ETA = 2e-4
 G_ETA_WS = 5e-5
 D_ETA_WS = 5e-5
+N_CRITIC = 5
 
 LATENT_SAMPLE = tf.random.normal([NUM_EX, LATENT_DIM], dtype=tf.float32)
 
@@ -39,20 +39,22 @@ train_list = os.listdir(IMG_PATH)
 # train_list = train_list[0:1000]
 N = len(train_list)
 
+# Set up dataset with minibatch size multiplied by number of critic training runs
 train_ds = tf.data.Dataset.from_generator(
-    dev_img_loader, args=[IMG_PATH, train_list], output_types=tf.float32).batch(MB_SIZE).prefetch(MB_SIZE)
+    dev_img_loader, args=[IMG_PATH, train_list], output_types=tf.float32).batch(MB_SIZE * N_CRITIC).prefetch(MB_SIZE)
 
 # Create optimisers and compile model
 # GOptimiser = keras.optimizers.Adam(G_ETA, 0.5, 0.999)
 # DOptimiser = keras.optimizers.Adam(D_ETA, 0.5, 0.999)
 GOptimiser = keras.optimizers.RMSprop(G_ETA_WS)
-DOptimiser = keras.optimizers.RMSprop(D_ETA_WS, clipvalue=0.01)
+DOptimiser = keras.optimizers.RMSprop(D_ETA_WS)
 Model = GAN(
     latent_dims=LATENT_DIM,
     g_nc=NC, d_nc=NC,
     g_optimiser=GOptimiser,
     d_optimiser=DOptimiser,
-    GAN_type="wasserstein")
+    GAN_type="wasserstein",
+    n_critic=N_CRITIC)
 
 # Training loop
 for epoch in range(EPOCHS):

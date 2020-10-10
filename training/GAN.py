@@ -1,32 +1,24 @@
 import tensorflow as tf
 import tensorflow.keras as keras
 
-
-@tf.function
-def least_square_loss(labels, predictions):
-    if tf.reduce_sum(labels) > 0:
-        fake_loss = 0.5 * tf.reduce_mean(tf.pow(predictions[0:labels.shape[0] // 2] - 1, 2))
-        real_loss = 0.5 * tf.reduce_mean(tf.pow(predictions[labels.shape[0] // 2:], 2))
-        return fake_loss + real_loss
-    else:
-        return 0.5 * tf.reduce_mean(tf.pow(predictions, 2))
-
-
-@tf.function
-def wasserstein_loss(labels, predictions):
-    return tf.reduce_mean(labels * predictions)
+from utils.TrainFuncs import least_square_loss, wasserstein_loss, WeightClipConstraint
 
 
 class Discriminator(keras.Model):
-    def __init__(self, d_nc, initialiser):
+    def __init__(self, d_nc, initialiser, clip):
         super(Discriminator, self).__init__()
         self.initialiser = initialiser
 
-        self.conv1 = keras.layers.Conv2D(d_nc, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser)
-        self.conv2 = keras.layers.Conv2D(d_nc * 2, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser)
-        self.conv3 = keras.layers.Conv2D(d_nc * 4, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser)
-        self.conv4 = keras.layers.Conv2D(d_nc * 8, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser)
-        self.conv5 = keras.layers.Conv2D(1, (4, 4), strides=(1, 1), padding='VALID', use_bias=True, kernel_initializer=self.initialiser)
+        if clip:
+            self.weight_clip = WeightClipConstraint(0.01)
+        else:
+            None
+
+        self.conv1 = keras.layers.Conv2D(d_nc, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser, kernel_constraint=self.weight_clip)
+        self.conv2 = keras.layers.Conv2D(d_nc * 2, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser, kernel_constraint=self.weight_clip)
+        self.conv3 = keras.layers.Conv2D(d_nc * 4, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser, kernel_constraint=self.weight_clip)
+        self.conv4 = keras.layers.Conv2D(d_nc * 8, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser, kernel_constraint=self.weight_clip)
+        self.conv5 = keras.layers.Conv2D(1, (4, 4), strides=(1, 1), padding='VALID', use_bias=True, kernel_initializer=self.initialiser, kernel_constraint=self.weight_clip)
 
         self.bn2 = keras.layers.BatchNormalization()
         self.bn3 = keras.layers.BatchNormalization()
@@ -69,7 +61,7 @@ class Generator(keras.Model):
 
 
 class GAN(keras.Model):
-    def __init__(self, latent_dims, g_nc, d_nc, g_optimiser, d_optimiser, GAN_type="wasserstein"):
+    def __init__(self, latent_dims, g_nc, d_nc, g_optimiser, d_optimiser, GAN_type, n_critic):
         super(GAN, self).__init__()
         self.latent_dims = latent_dims
         self.initialiser = keras.initializers.RandomNormal(0, 0.02)
@@ -98,19 +90,20 @@ class GAN(keras.Model):
         if GAN_type == "wasserstein":
             self.real_label = -1.0
             self.fake_label = 1.0
-            self.n_critic = 5
+            clip = True
         else:
             self.real_label = 0.0
             self.fake_label = 1.0
-            self.n_critic = 1
+            clip = False
 
         self.loss = self.loss_dict[GAN_type]
         self.g_metric = self.metric_dict[GAN_type][0]
         self.d_metric = self.metric_dict[GAN_type][1]
         self.Generator = Generator(latent_dims, g_nc, self.initialiser)
-        self.Discriminator = Discriminator(d_nc, self.initialiser)
+        self.Discriminator = Discriminator(d_nc, self.initialiser, clip)
         self.g_optimiser = g_optimiser
         self.d_optimiser = d_optimiser
+        self.n_critic = n_critic
     
     def compile(self, g_optimiser, d_optimiser, loss_key):
         super(GAN, self).compile()
@@ -119,9 +112,8 @@ class GAN(keras.Model):
         self.loss = self.loss_dict[loss_key]
     
     def train_step(self, real_images):
-        mb_size = real_images.shape[0]
-        noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
-        d_fake_images = self.Generator(noise, training=True)
+        # Determine critic labels and size of mb for each critic training run
+        mb_size = real_images.shape[0] // self.n_critic
         d_labels = tf.concat(
             [tf.ones((mb_size, 1)) * self.fake_label,
              tf.ones((mb_size, 1)) * self.real_label
@@ -129,10 +121,17 @@ class GAN(keras.Model):
 
         # TODO: ADD NOISE TO LABELS AND/OR IMAGES
 
-        for iteration in range(self.n_critic):
+        # Critic training loop
+        for idx in range(self.n_critic):
+            # Select minibatch of real images and generate fake images
+            d_real_batch = real_images[idx * mb_size:(idx + 1) * mb_size, :, :, :]
+            latent_noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
+            d_fake_images = self.Generator(latent_noise, training=True)
+
+            # Get gradients from critic predictions and update weights
             with tf.GradientTape() as d_tape:
                 d_pred_fake = self.Discriminator(d_fake_images, training=True)
-                d_pred_real = self.Discriminator(real_images, training=True)
+                d_pred_real = self.Discriminator(d_real_batch, training=True)
                 d_predictions = tf.concat([d_pred_fake, d_pred_real], axis=0)
                 d_loss = self.loss(d_labels, d_predictions)
             
@@ -141,10 +140,12 @@ class GAN(keras.Model):
             # self.d_metric.update_state(d_labels, d_predictions)
             self.d_metric.update_state(d_loss)
 
+        # Generator training with fake image labelled as real
         noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
-        g_labels = tf.ones((mb_size, 1)) * self.real_label # I.e. label fake image as real
+        g_labels = tf.ones((mb_size, 1)) * self.real_label
         # TODO: ADD NOISE TO LABELS AND/OR IMAGES
 
+        # Get gradients from critic predictions of generated fake images and update weights
         with tf.GradientTape() as g_tape:
             g_fake_images = self.Generator(noise, training=True)
             g_predictions = self.Discriminator(g_fake_images, training=True)
