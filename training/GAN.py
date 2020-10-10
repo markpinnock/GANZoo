@@ -12,6 +12,11 @@ def least_square_loss(labels, predictions):
         return 0.5 * tf.reduce_mean(tf.pow(predictions, 2))
 
 
+@tf.function
+def wasserstein_loss(labels, predictions):
+    return tf.reduce_mean(labels * predictions)
+
+
 class Discriminator(keras.Model):
     def __init__(self, d_nc, initialiser):
         super(Discriminator, self).__init__()
@@ -64,7 +69,7 @@ class Generator(keras.Model):
 
 
 class GAN(keras.Model):
-    def __init__(self, latent_dims, g_nc, d_nc, g_optimiser, d_optimiser):
+    def __init__(self, latent_dims, g_nc, d_nc, g_optimiser, d_optimiser, GAN_type="wasserstein"):
         super(GAN, self).__init__()
         self.latent_dims = latent_dims
         self.initialiser = keras.initializers.RandomNormal(0, 0.02)
@@ -72,7 +77,7 @@ class GAN(keras.Model):
         self.loss_dict = {
             "original": keras.losses.BinaryCrossentropy(from_logits=True),
             "least_square": least_square_loss,
-            "wasserstein": None
+            "wasserstein": wasserstein_loss
             }
 
         self.metric_dict = {
@@ -84,12 +89,24 @@ class GAN(keras.Model):
                 keras.metrics.Mean(),
                 keras.metrics.Mean()
                 ],
-            "wasserstein": None
+            "wasserstein": [
+                keras.metrics.Mean(),
+                keras.metrics.Mean()
+                ]
         }
 
-        self.loss = self.loss_dict["original"]
-        self.g_metric = self.metric_dict["original"][0]
-        self.d_metric = self.metric_dict["original"][1]
+        if GAN_type == "wasserstein":
+            self.real_label = -1.0
+            self.fake_label = 1.0
+            self.n_critic = 5
+        else:
+            self.real_label = 0.0
+            self.fake_label = 1.0
+            self.n_critic = 1
+
+        self.loss = self.loss_dict[GAN_type]
+        self.g_metric = self.metric_dict[GAN_type][0]
+        self.d_metric = self.metric_dict[GAN_type][1]
         self.Generator = Generator(latent_dims, g_nc, self.initialiser)
         self.Discriminator = Discriminator(d_nc, self.initialiser)
         self.g_optimiser = g_optimiser
@@ -105,23 +122,27 @@ class GAN(keras.Model):
         mb_size = real_images.shape[0]
         noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
         d_fake_images = self.Generator(noise, training=True)
-        d_labels = tf.concat([tf.ones((mb_size, 1)), tf.zeros((mb_size, 1))], axis=0)
+        d_labels = tf.concat(
+            [tf.ones((mb_size, 1)) * self.fake_label,
+             tf.ones((mb_size, 1)) * self.real_label
+             ], axis=0)
 
         # TODO: ADD NOISE TO LABELS AND/OR IMAGES
 
-        with tf.GradientTape() as d_tape:
-            d_pred_fake = self.Discriminator(d_fake_images, training=True)
-            d_pred_real = self.Discriminator(real_images, training=True)
-            d_predictions = tf.concat([d_pred_fake, d_pred_real], axis=0)
-            d_loss = self.loss(d_labels, d_predictions)
-        
-        d_grads = d_tape.gradient(d_loss, self.Discriminator.trainable_variables)
-        self.d_optimiser.apply_gradients(zip(d_grads, self.Discriminator.trainable_variables))
-        self.d_metric.update_state(d_labels, d_predictions)
-        # self.d_metric.update_state(d_loss)
+        for iteration in range(self.n_critic):
+            with tf.GradientTape() as d_tape:
+                d_pred_fake = self.Discriminator(d_fake_images, training=True)
+                d_pred_real = self.Discriminator(real_images, training=True)
+                d_predictions = tf.concat([d_pred_fake, d_pred_real], axis=0)
+                d_loss = self.loss(d_labels, d_predictions)
+            
+            d_grads = d_tape.gradient(d_loss, self.Discriminator.trainable_variables)
+            self.d_optimiser.apply_gradients(zip(d_grads, self.Discriminator.trainable_variables))
+            # self.d_metric.update_state(d_labels, d_predictions)
+            self.d_metric.update_state(d_loss)
 
         noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
-        g_labels = tf.zeros((mb_size, 1))
+        g_labels = tf.ones((mb_size, 1)) * self.real_label # I.e. label fake image as real
         # TODO: ADD NOISE TO LABELS AND/OR IMAGES
 
         with tf.GradientTape() as g_tape:
@@ -131,7 +152,7 @@ class GAN(keras.Model):
         
         g_grads = g_tape.gradient(g_loss, self.Generator.trainable_variables)
         self.g_optimiser.apply_gradients(zip(g_grads, self.Generator.trainable_variables))
-        self.g_metric.update_state(g_labels, g_predictions)
-        # self.g_metric.update_state(g_loss)
+        # self.g_metric.update_state(g_labels, g_predictions)
+        self.g_metric.update_state(g_loss)
 
         return {"g_loss": g_loss, "d_loss": d_loss}

@@ -29,25 +29,30 @@ NUM_EX = 16
 NC = 64
 G_ETA = 2e-4
 D_ETA = 2e-4
+G_ETA_WS = 5e-5
+D_ETA_WS = 5e-5
 
 LATENT_SAMPLE = tf.random.normal([NUM_EX, LATENT_DIM], dtype=tf.float32)
 
 # Create dataset
 train_list = os.listdir(IMG_PATH)
-train_list = train_list[0:1000]
+# train_list = train_list[0:1000]
 N = len(train_list)
 
 train_ds = tf.data.Dataset.from_generator(
     dev_img_loader, args=[IMG_PATH, train_list], output_types=tf.float32).batch(MB_SIZE).prefetch(MB_SIZE)
 
 # Create optimisers and compile model
-GOptimiser = keras.optimizers.Adam(G_ETA, 0.5, 0.999)
-DOptimiser = keras.optimizers.Adam(D_ETA, 0.5, 0.999)
+# GOptimiser = keras.optimizers.Adam(G_ETA, 0.5, 0.999)
+# DOptimiser = keras.optimizers.Adam(D_ETA, 0.5, 0.999)
+GOptimiser = keras.optimizers.RMSprop(G_ETA_WS)
+DOptimiser = keras.optimizers.RMSprop(D_ETA_WS, clipvalue=0.01)
 Model = GAN(
     latent_dims=LATENT_DIM,
     g_nc=NC, d_nc=NC,
     g_optimiser=GOptimiser,
-    d_optimiser=DOptimiser)
+    d_optimiser=DOptimiser,
+    GAN_type="wasserstein")
 
 # Training loop
 for epoch in range(EPOCHS):
