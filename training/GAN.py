@@ -15,12 +15,13 @@ def least_square_loss(labels, predictions):
 class Discriminator(keras.Model):
     def __init__(self, d_nc):
         super(Discriminator, self).__init__()
+        self.init = super(Generator, self).initialiser
 
-        self.conv1 = keras.layers.Conv2D(d_nc, (4, 4), strides=(2, 2), padding='SAME', use_bias=True)
-        self.conv2 = keras.layers.Conv2D(d_nc * 2, (4, 4), strides=(2, 2), padding='SAME', use_bias=True)
-        self.conv3 = keras.layers.Conv2D(d_nc * 4, (4, 4), strides=(2, 2), padding='SAME', use_bias=True)
-        self.conv4 = keras.layers.Conv2D(d_nc * 8, (4, 4), strides=(2, 2), padding='SAME', use_bias=True)
-        self.conv5 = keras.layers.Conv2D(1, (4, 4), strides=(1, 1), padding='VALID', use_bias=True)
+        self.conv1 = keras.layers.Conv2D(d_nc, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
+        self.conv2 = keras.layers.Conv2D(d_nc * 2, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
+        self.conv3 = keras.layers.Conv2D(d_nc * 4, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
+        self.conv4 = keras.layers.Conv2D(d_nc * 8, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
+        self.conv5 = keras.layers.Conv2D(1, (4, 4), strides=(1, 1), padding='VALID', use_bias=True, kernel_initializer=init)
 
         self.bn2 = keras.layers.BatchNormalization()
         self.bn3 = keras.layers.BatchNormalization()
@@ -36,15 +37,16 @@ class Discriminator(keras.Model):
 
 
 class Generator(keras.Model):
-    def __init__(self, noise_dims, g_nc):
+    def __init__(self, latent_dims, g_nc):
         super(Generator, self).__init__()
+        self.init = super(Generator, self).initialiser
 
-        self.reshaped = keras.layers.Reshape((1, 1, noise_dims))
-        self.tconv1 = keras.layers.Conv2DTranspose(g_nc * 8, (4, 4), strides=(1, 1), padding='VALID', use_bias=True)
-        self.tconv2 = keras.layers.Conv2DTranspose(g_nc * 4, (4, 4), strides=(2, 2), padding='SAME', use_bias=True)
-        self.tconv3 = keras.layers.Conv2DTranspose(g_nc * 2, (4, 4), strides=(2, 2), padding='SAME', use_bias=True)
-        self.tconv4 = keras.layers.Conv2DTranspose(g_nc, (4, 4), strides=(2, 2), padding='SAME', use_bias=True)
-        self.tconv5 = keras.layers.Conv2DTranspose(3, (4, 4), strides=(2, 2), padding='SAME', use_bias=True)
+        self.reshaped = keras.layers.Reshape((1, 1, latent_dims))
+        self.tconv1 = keras.layers.Conv2DTranspose(g_nc * 8, (4, 4), strides=(1, 1), padding='VALID', use_bias=True, kernel_initializer=init)
+        self.tconv2 = keras.layers.Conv2DTranspose(g_nc * 4, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
+        self.tconv3 = keras.layers.Conv2DTranspose(g_nc * 2, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
+        self.tconv4 = keras.layers.Conv2DTranspose(g_nc, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
+        self.tconv5 = keras.layers.Conv2DTranspose(3, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=init)
 
         self.bn1 = keras.layers.BatchNormalization()
         self.bn2 = keras.layers.BatchNormalization()
@@ -62,9 +64,10 @@ class Generator(keras.Model):
 
 
 class GAN(keras.Model):
-    def __init__(self, noise_dims, g_nc, d_nc, g_optimiser, d_optimiser):
+    def __init__(self, latent_dims, g_nc, d_nc, g_optimiser, d_optimiser):
         super(GAN, self).__init__()
-        self.noise_dims = noise_dims
+        self.latent_dims = latent_dims
+        self.initialiser = keras.initializers.RandomNormal(0, 0.02)
 
         self.loss_dict = {
             "original": keras.losses.BinaryCrossentropy(from_logits=True),
@@ -87,7 +90,7 @@ class GAN(keras.Model):
         self.loss = self.loss_dict["original"]
         self.g_metric = self.metric_dict["original"][0]
         self.d_metric = self.metric_dict["original"][1]
-        self.Generator = Generator(noise_dims, g_nc)
+        self.Generator = Generator(latent_dims, g_nc)
         self.Discriminator = Discriminator(d_nc)
         self.g_optimiser = g_optimiser
         self.d_optimiser = d_optimiser
@@ -100,7 +103,7 @@ class GAN(keras.Model):
     
     def train_step(self, real_images):
         mb_size = real_images.shape[0]
-        noise = tf.random.normal((mb_size, self.noise_dims), dtype=tf.float32)
+        noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
         d_fake_images = self.Generator(noise, training=True)
         d_labels = tf.concat([tf.ones((mb_size, 1)), tf.zeros((mb_size, 1))], axis=0)
 
@@ -117,7 +120,7 @@ class GAN(keras.Model):
         self.d_metric.update_state(d_labels, d_predictions)
         # self.d_metric.update_state(d_loss)
 
-        noise = tf.random.normal((mb_size, self.noise_dims), dtype=tf.float32)
+        noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
         g_labels = tf.zeros((mb_size, 1))
         # ADD NOISE TO LABELS AND/OR IMAGES
 
