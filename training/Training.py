@@ -47,14 +47,16 @@ train_ds = tf.data.Dataset.from_generator(
 # Create optimisers and compile model
 # GOptimiser = keras.optimizers.Adam(G_ETA, 0.5, 0.999)
 # DOptimiser = keras.optimizers.Adam(D_ETA, 0.5, 0.999)
-GOptimiser = keras.optimizers.RMSprop(G_ETA_WS)
-DOptimiser = keras.optimizers.RMSprop(D_ETA_WS)
+# GOptimiser = keras.optimizers.RMSprop(G_ETA_WS)
+# DOptimiser = keras.optimizers.RMSprop(D_ETA_WS)
+GOptimiser = keras.optimizers.Adam(1e-4, 0.0, 0.9)
+DOptimiser = keras.optimizers.Adam(1e-4, 0.0, 0.9)
 Model = GAN(
     latent_dims=LATENT_DIM,
     g_nc=G_NC, d_nc=D_NC,
     g_optimiser=GOptimiser,
     d_optimiser=DOptimiser,
-    GAN_type="wasserstein",
+    GAN_type="wasserstein-GP",
     n_critic=N_CRITIC)
 
 # Training loop

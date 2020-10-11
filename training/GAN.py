@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow.keras as keras
 
-from utils.TrainFuncs import least_square_loss, wasserstein_loss, WeightClipConstraint
+from utils.TrainFuncs import least_square_loss, wasserstein_loss, gradient_penalty, WeightClipConstraint
 
 
 class Discriminator(keras.Model):
@@ -63,13 +63,15 @@ class Generator(keras.Model):
 class GAN(keras.Model):
     def __init__(self, latent_dims, g_nc, d_nc, g_optimiser, d_optimiser, GAN_type, n_critic):
         super(GAN, self).__init__()
+        self.GAN_type = GAN_type
         self.latent_dims = latent_dims
         self.initialiser = keras.initializers.RandomNormal(0, 0.02)
 
         self.loss_dict = {
             "original": keras.losses.BinaryCrossentropy(from_logits=True),
             "least_square": least_square_loss,
-            "wasserstein": wasserstein_loss
+            "wasserstein": wasserstein_loss,
+            "wasserstein-GP": wasserstein_loss
             }
 
         self.metric_dict = {
@@ -83,6 +85,11 @@ class GAN(keras.Model):
             self.d_fake_label = 1.0
             self.g_label = -1.0
             clip = True
+        elif GAN_type == "wasserstein-GP":
+            self.d_real_label = -1.0
+            self.d_fake_label = 1.0
+            self.g_label = -1.0
+            clip = False
         else:
             self.d_real_label = 0.0
             self.d_fake_label = 1.0
@@ -127,9 +134,14 @@ class GAN(keras.Model):
                 d_pred_fake = self.Discriminator(d_fake_images, training=True)
                 d_pred_real = self.Discriminator(d_real_batch, training=True)
                 d_predictions = tf.concat([d_pred_fake, d_pred_real], axis=0)
-                d_loss_1 = self.loss(d_labels[0:mb_size], d_predictions[0:mb_size])
-                d_loss_2 = self.loss(d_labels[mb_size:], d_predictions[mb_size:])
+                d_loss_1 = self.loss(d_labels[0:mb_size], d_predictions[0:mb_size]) # Fake
+                d_loss_2 = self.loss(d_labels[mb_size:], d_predictions[mb_size:]) # Real
                 d_loss = 0.5 * d_loss_1 + 0.5 * d_loss_2
+            
+                # Gradient penalty if indicated
+                if self.GAN_type == "wasserstein-GP":
+                    grad_penalty = gradient_penalty(d_real_batch, d_fake_images, self.Discriminator)
+                    d_loss += 10 * grad_penalty
             
             d_grads = d_tape.gradient(d_loss, self.Discriminator.trainable_variables)
             self.d_optimiser.apply_gradients(zip(d_grads, self.Discriminator.trainable_variables))
