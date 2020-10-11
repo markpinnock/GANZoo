@@ -27,11 +27,33 @@ LATENT_DIM = 128
 NUM_EX = 16
 D_NC = 64
 G_NC = 64
-G_ETA = 2e-4
-D_ETA = 2e-4
-G_ETA_WS = 5e-5
-D_ETA_WS = 5e-5
-N_CRITIC = 5
+GAN_TYPE = "wasserstein-GP"
+SAVE_CKPT = False
+# TODO: Convert to argparse
+
+# Set GAN-specific optimisers/hyperparameters
+OPT_DICT = {
+    "original": {
+        "G_OPT": keras.optimizers.Adam(2e-4, 0.5, 0.999),
+        "D_OPT": keras.optimizers.Adam(2e-4, 0.5, 0.999),
+        "N_CRITIC": 1
+        },
+    "least_square": {
+        "G_OPT": keras.optimizers.Adam(2e-4, 0.5, 0.999),
+        "D_ETA": keras.optimizers.Adam(2e-4, 0.5, 0.999),
+        "N_CRITIC": 1
+        },
+    "wasserstein": {
+        "G_OPT": keras.optimizers.RMSprop(5e-5),
+        "D_OPT": keras.optimizers.RMSprop(5e-5),
+        "N_CRITIC": 5
+        },
+    "wasserstein-GP": {
+        "G_OPT": keras.optimizers.Adam(1e-4, 0.0, 0.9),
+        "D_OPT": keras.optimizers.Adam(1e-4, 0.0, 0.9),
+        "N_CRITIC": 5
+    }
+}
 
 LATENT_SAMPLE = tf.random.normal([NUM_EX, LATENT_DIM], dtype=tf.float32)
 
@@ -42,22 +64,19 @@ N = len(train_list)
 
 # Set up dataset with minibatch size multiplied by number of critic training runs
 train_ds = tf.data.Dataset.from_generator(
-    dev_img_loader, args=[IMG_PATH, train_list], output_types=tf.float32).batch(MB_SIZE * N_CRITIC).prefetch(MB_SIZE)
+    dev_img_loader, args=[IMG_PATH, train_list], output_types=tf.float32).batch(MB_SIZE * OPT_DICT[GAN_TYPE]["N_CRITIC"]).prefetch(MB_SIZE)
 
 # Create optimisers and compile model
-# GOptimiser = keras.optimizers.Adam(G_ETA, 0.5, 0.999)
-# DOptimiser = keras.optimizers.Adam(D_ETA, 0.5, 0.999)
-# GOptimiser = keras.optimizers.RMSprop(G_ETA_WS)
-# DOptimiser = keras.optimizers.RMSprop(D_ETA_WS)
 GOptimiser = keras.optimizers.Adam(1e-4, 0.0, 0.9)
 DOptimiser = keras.optimizers.Adam(1e-4, 0.0, 0.9)
 Model = GAN(
     latent_dims=LATENT_DIM,
     g_nc=G_NC, d_nc=D_NC,
-    g_optimiser=GOptimiser,
-    d_optimiser=DOptimiser,
-    GAN_type="wasserstein-GP",
-    n_critic=N_CRITIC)
+    g_optimiser=OPT_DICT[GAN_TYPE]["G_OPT"],
+    d_optimiser=OPT_DICT[GAN_TYPE]["D_OPT"],
+    GAN_type=GAN_TYPE,
+    n_critic=OPT_DICT[GAN_TYPE]["N_CRITIC"]
+    )
 
 # Training loop
 for epoch in range(EPOCHS):
@@ -66,9 +85,7 @@ for epoch in range(EPOCHS):
     Model.metric_dict["d_metric_2"].reset_states()
 
     for imgs in train_ds:
-        losses = Model.train_step(imgs)
-        # g_loss += losses["g_loss"]
-        # d_loss += losses["d_loss"]
+        _ = Model.train_step(imgs)
 
     print(f"Ep {epoch + 1}, G: {Model.metric_dict['g_metric'].result():.4f}, D1: {Model.metric_dict['d_metric_1'].result():.4f}, D2: {Model.metric_dict['d_metric_2'].result():.4f}")
 
@@ -88,13 +105,13 @@ for epoch in range(EPOCHS):
         plt.close()
 
     # Save checkpoint
-    # if (epoch + 1) % 10 == 0:
-    #     check_path = f"{SAVE_PATH}models/{RES}/"
+    if (epoch + 1) % 10 == 0 and SAVE_CKPT:
+        check_path = f"{SAVE_PATH}models/{RES}/"
 
-    #     if not os.path.exists(check_path):
-    #         os.mkdir(check_path)
+        if not os.path.exists(check_path):
+            os.mkdir(check_path)
         
-    #     G_check_name = f"{SAVE_PATH}models/{RES}/G_{epoch + 1:04d}.ckpt"
-    #     D_check_name = f"{SAVE_PATH}models/{RES}/D_{epoch + 1:04d}.ckpt"
-    #     Generator.save_weights(G_check_name)
-    #     Discriminator.save_weights(D_check_name)
+        G_check_name = f"{SAVE_PATH}models/{RES}/G_{epoch + 1:04d}.ckpt"
+        D_check_name = f"{SAVE_PATH}models/{RES}/D_{epoch + 1:04d}.ckpt"
+        Generator.save_weights(G_check_name)
+        Discriminator.save_weights(D_check_name)

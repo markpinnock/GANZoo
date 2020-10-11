@@ -5,6 +5,12 @@ from utils.TrainFuncs import least_square_loss, wasserstein_loss, gradient_penal
 
 
 class Discriminator(keras.Model):
+
+    """ Discriminator model for GAN
+        - d_nc: number of channels in first layer
+        - initaliser: e.g. keras.initalizers.RandomNormal()
+        - clip: True/False, whether to clip layer weights """
+
     def __init__(self, d_nc, initialiser, clip):
         super(Discriminator, self).__init__()
         self.initialiser = initialiser
@@ -19,7 +25,7 @@ class Discriminator(keras.Model):
         self.conv3 = keras.layers.Conv2D(d_nc * 4, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser, kernel_constraint=self.weight_clip)
         self.conv4 = keras.layers.Conv2D(d_nc * 8, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser, kernel_constraint=self.weight_clip)
         self.conv5 = keras.layers.Conv2D(1, (4, 4), strides=(1, 1), padding='VALID', use_bias=True, kernel_initializer=self.initialiser, kernel_constraint=self.weight_clip)
-
+        # TODO: change BN to LN in WGAN-GP
         self.bn2 = keras.layers.BatchNormalization()
         self.bn3 = keras.layers.BatchNormalization()
         self.bn4 = keras.layers.BatchNormalization()
@@ -34,6 +40,12 @@ class Discriminator(keras.Model):
 
 
 class Generator(keras.Model):
+
+    """ Generator model for GAN
+        - latient_dims: size of latent distribution
+        - g_nc: number of channels in first layer
+        - initaliser: e.g. keras.initalizers.RandomNormal() """
+
     def __init__(self, latent_dims, g_nc, initialiser):
         super(Generator, self).__init__()
         self.initialiser = initialiser
@@ -61,12 +73,23 @@ class Generator(keras.Model):
 
 
 class GAN(keras.Model):
+
+    """ GAN class
+        - latent_dims: size of generator latent distribution
+        - g_nc: number of channels in generator first layer
+        - d_nc: number of channels in discriminator first layer
+        - g_optimiser: generator optimiser e.g. keras.optimizers.Adam()
+        - d_optimiser: discriminator optimiser e.g. keras.optimizers.Adam()
+        - GAN_type: 'original', 'least_square', 'wasserstein' or 'wasserstein-GP'
+        - n_critic: number of discriminator/critic training runs (5 in WGAN, 1 otherwise) """
+
     def __init__(self, latent_dims, g_nc, d_nc, g_optimiser, d_optimiser, GAN_type, n_critic):
         super(GAN, self).__init__()
         self.GAN_type = GAN_type
         self.latent_dims = latent_dims
         self.initialiser = keras.initializers.RandomNormal(0, 0.02)
 
+        # Choose appropriate loss and initialise metrics
         self.loss_dict = {
             "original": keras.losses.BinaryCrossentropy(from_logits=True),
             "least_square": least_square_loss,
@@ -80,6 +103,7 @@ class GAN(keras.Model):
             "d_metric_2": keras.metrics.Mean()
         }
 
+        # Set up real/fake labels
         if GAN_type == "wasserstein":
             self.d_real_label = -1.0
             self.d_fake_label = 1.0
@@ -104,6 +128,8 @@ class GAN(keras.Model):
         self.n_critic = n_critic
     
     def compile(self, g_optimiser, d_optimiser, loss_key):
+        # Not currently used
+        raise NotImplementedError
         super(GAN, self).compile()
         self.g_optimiser = g_optimiser
         self.d_optimiser = d_optimiser
@@ -111,6 +137,7 @@ class GAN(keras.Model):
     
     def train_step(self, real_images):
         # Determine labels and size of mb for each critic training run
+        # (size of real_images = minibatch size * number of critic runs)
         mb_size = real_images.shape[0] // self.n_critic
 
         d_labels = tf.concat(
@@ -146,6 +173,7 @@ class GAN(keras.Model):
             d_grads = d_tape.gradient(d_loss, self.Discriminator.trainable_variables)
             self.d_optimiser.apply_gradients(zip(d_grads, self.Discriminator.trainable_variables))
 
+            # Update metrics
             self.metric_dict["d_metric_1"].update_state(d_loss_1)
             self.metric_dict["d_metric_2"].update_state(d_loss_2)
 
@@ -163,6 +191,7 @@ class GAN(keras.Model):
         g_grads = g_tape.gradient(g_loss, self.Generator.trainable_variables)
         self.g_optimiser.apply_gradients(zip(g_grads, self.Generator.trainable_variables))
 
+        # Update metric
         self.metric_dict["g_metric"].update_state(g_loss)
 
         return self.metric_dict
