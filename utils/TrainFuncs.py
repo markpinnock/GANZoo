@@ -7,7 +7,7 @@ class WeightClipConstraint(keras.constraints.Constraint):
         self.clip_val = clip_val
     
     def call(self, weights):
-        return keras.backend.clip(weights, -clip_val, clip_val)
+        return keras.backend.clip(weights, -self.clip_val, self.clip_val)
     
     def get_config(self):
         return {"clip_value": self.clip_val}

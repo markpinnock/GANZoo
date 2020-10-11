@@ -12,7 +12,7 @@ class Discriminator(keras.Model):
         if clip:
             self.weight_clip = WeightClipConstraint(0.01)
         else:
-            None
+            self.weight_clip = None
 
         self.conv1 = keras.layers.Conv2D(d_nc, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser, kernel_constraint=self.weight_clip)
         self.conv2 = keras.layers.Conv2D(d_nc * 2, (4, 4), strides=(2, 2), padding='SAME', use_bias=True, kernel_initializer=self.initialiser, kernel_constraint=self.weight_clip)
@@ -73,32 +73,23 @@ class GAN(keras.Model):
             }
 
         self.metric_dict = {
-            "original": [
-                keras.metrics.BinaryCrossentropy(from_logits=True),
-                keras.metrics.BinaryCrossentropy(from_logits=True)
-                ],
-            "least_square": [
-                keras.metrics.Mean(),
-                keras.metrics.Mean()
-                ],
-            "wasserstein": [
-                keras.metrics.Mean(),
-                keras.metrics.Mean()
-                ]
+            "g_metric": keras.metrics.Mean(),
+            "d_metric_1": keras.metrics.Mean(),
+            "d_metric_2": keras.metrics.Mean()
         }
 
         if GAN_type == "wasserstein":
-            self.real_label = -1.0
-            self.fake_label = 1.0
+            self.d_real_label = -1.0
+            self.d_fake_label = 1.0
+            self.g_label = -1.0
             clip = True
         else:
-            self.real_label = 0.0
-            self.fake_label = 1.0
+            self.d_real_label = 0.0
+            self.d_fake_label = 1.0
+            self.g_label = 0.0
             clip = False
 
         self.loss = self.loss_dict[GAN_type]
-        self.g_metric = self.metric_dict[GAN_type][0]
-        self.d_metric = self.metric_dict[GAN_type][1]
         self.Generator = Generator(latent_dims, g_nc, self.initialiser)
         self.Discriminator = Discriminator(d_nc, self.initialiser, clip)
         self.g_optimiser = g_optimiser
@@ -112,12 +103,15 @@ class GAN(keras.Model):
         self.loss = self.loss_dict[loss_key]
     
     def train_step(self, real_images):
-        # Determine critic labels and size of mb for each critic training run
+        # Determine labels and size of mb for each critic training run
         mb_size = real_images.shape[0] // self.n_critic
+
         d_labels = tf.concat(
-            [tf.ones((mb_size, 1)) * self.fake_label,
-             tf.ones((mb_size, 1)) * self.real_label
+            [tf.ones((mb_size, 1)) * self.d_fake_label,
+             tf.ones((mb_size, 1)) * self.d_real_label
              ], axis=0)
+            
+        g_labels = tf.ones((mb_size, 1)) * self.g_label
 
         # TODO: ADD NOISE TO LABELS AND/OR IMAGES
 
@@ -133,16 +127,19 @@ class GAN(keras.Model):
                 d_pred_fake = self.Discriminator(d_fake_images, training=True)
                 d_pred_real = self.Discriminator(d_real_batch, training=True)
                 d_predictions = tf.concat([d_pred_fake, d_pred_real], axis=0)
-                d_loss = self.loss(d_labels, d_predictions)
+                d_loss_1 = self.loss(d_labels[0:mb_size], d_predictions[0:mb_size])
+                d_loss_2 = self.loss(d_labels[mb_size:], d_predictions[mb_size:])
+                d_loss = 0.5 * d_loss_1 + 0.5 * d_loss_2
             
             d_grads = d_tape.gradient(d_loss, self.Discriminator.trainable_variables)
             self.d_optimiser.apply_gradients(zip(d_grads, self.Discriminator.trainable_variables))
-            # self.d_metric.update_state(d_labels, d_predictions)
-            self.d_metric.update_state(d_loss)
 
-        # Generator training with fake image labelled as real
+            self.metric_dict["d_metric_1"].update_state(d_loss_1)
+            self.metric_dict["d_metric_2"].update_state(d_loss_2)
+
+        # Generator training
         noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
-        g_labels = tf.ones((mb_size, 1)) * self.real_label
+        
         # TODO: ADD NOISE TO LABELS AND/OR IMAGES
 
         # Get gradients from critic predictions of generated fake images and update weights
@@ -153,7 +150,7 @@ class GAN(keras.Model):
         
         g_grads = g_tape.gradient(g_loss, self.Generator.trainable_variables)
         self.g_optimiser.apply_gradients(zip(g_grads, self.Generator.trainable_variables))
-        # self.g_metric.update_state(g_labels, g_predictions)
-        self.g_metric.update_state(g_loss)
 
-        return {"g_loss": g_loss, "d_loss": d_loss}
+        self.metric_dict["g_metric"].update_state(g_loss)
+
+        return self.metric_dict

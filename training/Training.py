@@ -25,7 +25,8 @@ MB_SIZE = 64
 EPOCHS = 100
 LATENT_DIM = 128
 NUM_EX = 16
-NC = 64
+D_NC = 64
+G_NC = 64
 G_ETA = 2e-4
 D_ETA = 2e-4
 G_ETA_WS = 5e-5
@@ -50,7 +51,7 @@ GOptimiser = keras.optimizers.RMSprop(G_ETA_WS)
 DOptimiser = keras.optimizers.RMSprop(D_ETA_WS)
 Model = GAN(
     latent_dims=LATENT_DIM,
-    g_nc=NC, d_nc=NC,
+    g_nc=G_NC, d_nc=D_NC,
     g_optimiser=GOptimiser,
     d_optimiser=DOptimiser,
     GAN_type="wasserstein",
@@ -58,15 +59,16 @@ Model = GAN(
 
 # Training loop
 for epoch in range(EPOCHS):
-    Model.g_metric.reset_states()
-    Model.d_metric.reset_states()
+    Model.metric_dict["g_metric"].reset_states()
+    Model.metric_dict["d_metric_1"].reset_states()
+    Model.metric_dict["d_metric_2"].reset_states()
 
     for imgs in train_ds:
         losses = Model.train_step(imgs)
         # g_loss += losses["g_loss"]
         # d_loss += losses["d_loss"]
 
-    print(f"Ep {epoch + 1}, G: {Model.g_metric.result():.4f}, D: {Model.d_metric.result():.4f}")
+    print(f"Ep {epoch + 1}, G: {Model.metric_dict['g_metric'].result():.4f}, D1: {Model.metric_dict['d_metric_1'].result():.4f}, D2: {Model.metric_dict['d_metric_2'].result():.4f}")
 
     # Generate example images
     if (epoch + 1) % 1 == 0:
