@@ -1,6 +1,7 @@
 import tensorflow as tf
 import tensorflow.keras as keras
 
+from networks.Networks import Discriminator, Generator
 from utils.TrainFuncs import least_square_loss, wasserstein_loss, gradient_penalty
 
 
@@ -26,7 +27,8 @@ class GAN(keras.Model):
             "original": keras.losses.BinaryCrossentropy(from_logits=True),
             "least_square": least_square_loss,
             "wasserstein": wasserstein_loss,
-            "wasserstein-GP": wasserstein_loss
+            "wasserstein-GP": wasserstein_loss,
+            "progressive": wasserstein_loss
             }
 
         self.metric_dict = {
@@ -40,21 +42,26 @@ class GAN(keras.Model):
             self.d_real_label = -1.0
             self.d_fake_label = 1.0
             self.g_label = -1.0
-            clip = True
+            cons = True
         elif GAN_type == "wasserstein-GP":
             self.d_real_label = -1.0
             self.d_fake_label = 1.0
             self.g_label = -1.0
-            clip = False
+            cons = False
+        elif GAN_type == "progressive":
+            self.d_real_label = -1.0
+            self.d_fake_label = 1.0
+            self.g_label = -1.0
+            cons = "maxnorm"
         else:
             self.d_real_label = 0.0
             self.d_fake_label = 1.0
             self.g_label = 0.0
-            clip = False
-
+            cons = False
+        # TODO: IMPLEMENT CONSTRAINT TYPE
         self.loss = self.loss_dict[GAN_type]
-        self.Generator = Generator(latent_dims, g_nc, self.initialiser)
-        self.Discriminator = Discriminator(d_nc, self.initialiser, clip)
+        self.Generator = Generator(latent_dims, g_nc, self.initialiser, cons)
+        self.Discriminator = Discriminator(d_nc, self.initialiser, cons)
         self.g_optimiser = g_optimiser
         self.d_optimiser = d_optimiser
         self.n_critic = n_critic
@@ -67,7 +74,7 @@ class GAN(keras.Model):
         self.d_optimiser = d_optimiser
         self.loss = self.loss_dict[loss_key]
     
-    def train_step(self, real_images):
+    def train_step(self, real_images, scale, fade=False):
         # Determine labels and size of mb for each critic training run
         # (size of real_images = minibatch size * number of critic runs)
         mb_size = real_images.shape[0] // self.n_critic
@@ -98,7 +105,8 @@ class GAN(keras.Model):
                 d_loss = 0.5 * d_loss_1 + 0.5 * d_loss_2
             
                 # Gradient penalty if indicated
-                if self.GAN_type == "wasserstein-GP":
+                # TODO: tidy up loss selection
+                if self.GAN_type == "wasserstein-GP" or "progressive":
                     grad_penalty = gradient_penalty(d_real_batch, d_fake_images, self.Discriminator)
                     d_loss += 10 * grad_penalty
             

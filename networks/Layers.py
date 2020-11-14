@@ -1,3 +1,4 @@
+import tensorflow as tf
 import tensorflow.keras as keras
 
 
@@ -18,7 +19,7 @@ class MinibatchStd(keras.layers.Layer):
         super(MinibatchStd, self).__init__()
     
     def call(self, x):
-        mean_std_dev = tf.reduce_mean(tf.math.reduce_std(x, axis=0))
+        mean_std_dev = tf.reduce_mean(tf.math.reduce_std(x, axis=0, keepdims=True), keepdims=True)
         stat_channel = tf.tile(mean_std_dev, x.shape[:-1] + [1])
         return tf.concat([x, stat_channel], axis=-1)
 
@@ -28,7 +29,7 @@ class PixelNorm(keras.layers.Layer):
         super(PixelNorm, self).__init__()
     
     def call(self, x):
-        x_sq = tf.reduce_mean(tf.square(x, 2.0), axis=-1)
+        x_sq = tf.reduce_mean(tf.square(x, 2.0), axis=-1, keepdims=True)
         x_norm = tf.sqrt(x_sq + 1e-8)
         return x / x_norm
 
@@ -36,4 +37,4 @@ class PixelNorm(keras.layers.Layer):
 # TODO: implement equalised learning rate
 
 # keras.constraints.MaxNorm(1)
-class DiscriminatorBlock(keras.layers.Layer):
+# class DiscriminatorBlock(keras.layers.Layer):

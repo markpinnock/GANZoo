@@ -5,9 +5,9 @@ import sys
 import tensorflow.keras as keras
 import tensorflow as tf
 
-sys.path.append('..')
+sys.path.append("C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/scripts/")
 
-from GAN import GAN
+from networks.GANWrapper import GAN
 from utils.DataLoaders import imgPartition, dev_img_loader, img_loader
 
 # Dev dataset
@@ -27,7 +27,7 @@ LATENT_DIM = 128
 NUM_EX = 16
 D_NC = 64
 G_NC = 64
-GAN_TYPE = "wasserstein-GP"
+GAN_TYPE = "progressive"
 SAVE_CKPT = False
 # TODO: Convert to argparse
 
@@ -52,6 +52,11 @@ OPT_DICT = {
         "G_OPT": keras.optimizers.Adam(1e-4, 0.0, 0.9),
         "D_OPT": keras.optimizers.Adam(1e-4, 0.0, 0.9),
         "N_CRITIC": 5
+    },
+    "progressive": {
+        "G_OPT": keras.optimizers.Adam(1e-3, 0.0, 0.9),
+        "D_OPT": keras.optimizers.Adam(1e-3, 0.0, 0.9),
+        "N_CRITIC": 1
     }
 }
 
@@ -67,8 +72,7 @@ train_ds = tf.data.Dataset.from_generator(
     dev_img_loader, args=[IMG_PATH, train_list], output_types=tf.float32).batch(MB_SIZE * OPT_DICT[GAN_TYPE]["N_CRITIC"]).prefetch(MB_SIZE)
 
 # Create optimisers and compile model
-GOptimiser = keras.optimizers.Adam(1e-4, 0.0, 0.9)
-DOptimiser = keras.optimizers.Adam(1e-4, 0.0, 0.9)
+
 Model = GAN(
     latent_dims=LATENT_DIM,
     g_nc=G_NC, d_nc=D_NC,
@@ -78,8 +82,12 @@ Model = GAN(
     n_critic=OPT_DICT[GAN_TYPE]["N_CRITIC"]
     )
 
+num_batches = N // mb_size
+num_iter = num_batches * EPOCHS
+
 # Training loop
 for epoch in range(EPOCHS):
+
     Model.metric_dict["g_metric"].reset_states()
     Model.metric_dict["d_metric_1"].reset_states()
     Model.metric_dict["d_metric_2"].reset_states()
