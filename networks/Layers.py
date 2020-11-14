@@ -9,7 +9,7 @@ class FadeInLayer(keras.layers.Layer):
     def __init__(self):
         super(FadeInLayer, self).__init__()
 
-    def call(self, alpha, *xs):
+    def call(self, alpha, xs):
         assert (len(xs)) == 2
         return (1.0 - alpha) * xs[0] + alpha * xs[1]
     
