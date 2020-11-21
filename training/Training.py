@@ -68,12 +68,7 @@ train_list = os.listdir(IMG_PATH)
 # train_list = train_list[0:64]
 N = len(train_list)
 
-# Set up dataset with minibatch size multiplied by number of critic training runs
-train_ds = tf.data.Dataset.from_generator(
-    dev_img_loader, args=[IMG_PATH, train_list], output_types=tf.float32).batch(MB_SIZE * OPT_DICT[GAN_TYPE]["N_CRITIC"]).prefetch(MB_SIZE)
-
 # Create optimisers and compile model
-
 Model = GAN(
     latent_dims=LATENT_DIM,
     g_nc=G_NC, d_nc=D_NC,
@@ -86,12 +81,19 @@ Model = GAN(
 # trace_graph(Model.Generator, tf.zeros((1, 128)))
 # trace_graph(Model.Discriminator, tf.zeros((1, 64, 64, 3)))
 # exit()
-MB_SIZES = [16, 16, 16, 8, 4]
+MB_SIZES = [64, 64, 32, 8, 4]
 SCALES = [4, 8, 16, 32, 64]
 EPOCHS = [5, 8, 8, 10, 30]
+
+# Set up dataset with minibatch size multiplied by number of critic training runs
+train_ds = tf.data.Dataset.from_generator(
+    dev_img_loader, args=[IMG_PATH, train_list], output_types=tf.float32).batch(MB_SIZES[0] * OPT_DICT[GAN_TYPE]["N_CRITIC"]).prefetch(MB_SIZES[0])
 
 Model = Pix2Pix_training_loop(MB_SIZES[0], EPOCHS[0], Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, scale=SCALES[0], fade=False)
 
 for i in range(1, len(MB_SIZES)):
+    train_ds = tf.data.Dataset.from_generator(
+        dev_img_loader, args=[IMG_PATH, train_list], output_types=tf.float32).batch(MB_SIZES[i] * OPT_DICT[GAN_TYPE]["N_CRITIC"]).prefetch(MB_SIZES[i])
+
     Model = Pix2Pix_training_loop(MB_SIZES[i], EPOCHS[i], Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, scale=SCALES[i], fade=True)
     Model = Pix2Pix_training_loop(MB_SIZES[i], EPOCHS[i], Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, scale=SCALES[i], fade=False)
