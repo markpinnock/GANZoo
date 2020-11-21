@@ -7,7 +7,7 @@ import tensorflow as tf
 
 sys.path.append("C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/scripts/")
 
-from training_loops import Pix2Pix_training_loop
+from training_loops import Pix2Pix_training_loop, trace_graph
 from networks.GANWrapper import GAN
 from utils.DataLoaders import imgPartition, dev_img_loader, img_loader
 
@@ -65,7 +65,7 @@ LATENT_SAMPLE = tf.random.normal([NUM_EX, LATENT_DIM], dtype=tf.float32)
 
 # Create dataset
 train_list = os.listdir(IMG_PATH)
-# train_list = train_list[0:1000]
+# train_list = train_list[0:64]
 N = len(train_list)
 
 # Set up dataset with minibatch size multiplied by number of critic training runs
@@ -83,9 +83,12 @@ Model = GAN(
     n_critic=OPT_DICT[GAN_TYPE]["N_CRITIC"]
     )
 
+# trace_graph(Model.Generator, tf.zeros((1, 128)))
+# trace_graph(Model.Discriminator, tf.zeros((1, 64, 64, 3)))
+# exit()
 MB_SIZES = [16, 16, 16, 8, 4]
 SCALES = [4, 8, 16, 32, 64]
-EPOCHS = [5, 8, 8, 10, 10]
+EPOCHS = [5, 8, 8, 10, 30]
 
 Model = Pix2Pix_training_loop(MB_SIZES[0], EPOCHS[0], Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, scale=SCALES[0], fade=False)
 
