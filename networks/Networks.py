@@ -33,7 +33,7 @@ class ProgGANDiscBlock(keras.layers.Layer):
 
         # conv1 only used if first block
         self.next_block = next_block
-        self.conv1 = keras.layers.Conv2D(128, (1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+        self.from_rgb = keras.layers.Conv2D(128, (1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
         
         # If this is last discriminator block, collapse to prediction
         if next_block == None:
@@ -52,14 +52,15 @@ class ProgGANDiscBlock(keras.layers.Layer):
         
         # If fade in, cache downsampled input image
         if first_block and alpha != None and self.next_block != None:
-            dn_cache = self.downsample(x)
-            dn_cache = tf.nn.leaky_relu(self.conv1(dn_cache), alpha=0.2)
+            next_rgb = self.downsample(x)
+            next_rgb = tf.nn.leaky_relu(self.next_block.from_rgb(next_rgb), alpha=0.2)
 
         # If the very first block, perform 1x1 conv
         if first_block:
-            x = tf.nn.leaky_relu(self.conv1(x), alpha=0.2)
+            x = tf.nn.leaky_relu(self.from_rgb(x), alpha=0.2)
 
         # If this is not the last block
+        # Deactivate from_rgb here !!!
         if self.next_block != None:
             x = tf.nn.leaky_relu(self.conv2(x), alpha=0.2)
             x = tf.nn.leaky_relu(self.conv3(x), alpha=0.2)
@@ -67,9 +68,9 @@ class ProgGANDiscBlock(keras.layers.Layer):
 
             # If fade in, merge with cached layer
             if first_block and alpha != None and self.next_block != None:
-                x = self.fade_in(alpha, [dn_cache, x])
+                x = self.fade_in(alpha, [next_rgb, x])
             
-            x = self.next_block(x, alpha, first_block=False)
+            x = self.next_block(x, alpha=None, first_block=False)
         
         # If this is the last block
         else:
@@ -87,7 +88,7 @@ class ProgGANGenBlock(keras.layers.Layer):
         self.prev_block = prev_block
         self.pixel_norm = PixelNorm()
         
-        # If this is first generator block, need latent noise
+        # If this is first generator block, reshape latent noise
         if prev_block == None:
             self.reshaped = keras.layers.Reshape((1, 1, latent_dims))
             self.conv1 = keras.layers.Conv2DTranspose(128, (4, 4), strides=(1, 1), padding="VALID", kernel_initializer=initialiser, kernel_constraint=weight_const)
@@ -96,12 +97,12 @@ class ProgGANGenBlock(keras.layers.Layer):
         # If previous blocks exist, we use those
         else:
             self.upsample = keras.layers.UpSampling2D()
-            self.fade_in = FadeInLayer()
             self.conv1 = keras.layers.Conv2D(128, (3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
             self.conv2 = keras.layers.Conv2D(128, (3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.fade_in = FadeInLayer()
         
-        # Output if this is last block
-        self.out = keras.layers.Conv2D(3, (1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+        # Output to rgb
+        self.to_rgb = keras.layers.Conv2D(3, (1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
 
     def call(self, x, alpha=None, last_block=True):
 
@@ -111,23 +112,26 @@ class ProgGANGenBlock(keras.layers.Layer):
             x = tf.nn.leaky_relu(self.pixel_norm(self.conv1(x)), alpha=0.2)
             x = tf.nn.leaky_relu(self.pixel_norm(self.conv2(x)), alpha=0.2)
         
-        # If previous blocks exist, upsample those and cache for fade in
+        # If previous blocks, upsample to_rgb and cache for fade in
         else:
-            x = self.prev_block(x, alpha, last_block=False)
-            up_cache = self.upsample(x)
-            x = tf.nn.leaky_relu(self.pixel_norm(self.conv1(up_cache)), alpha=0.2)
+            # deactivate previous rgb here !!!
+            prev_x, prev_rgb = self.prev_block(x, alpha=None, last_block=False)
+            prev_x = self.upsample(prev_x)
+            x = tf.nn.leaky_relu(self.pixel_norm(self.conv1(prev_x)), alpha=0.2)
             x = tf.nn.leaky_relu(self.pixel_norm(self.conv2(x)), alpha=0.2)
 
-        # If this is the last block, create output image
-        if last_block:
-            x = self.out(x)
+        # Create output image
+        rgb = self.to_rgb(x)
 
-            # If fade in, merge cached prev block and this block
-            if alpha != None and self.prev_block != None:
-                up_cache = self.out(up_cache)
-                x = self.fade_in(alpha, [up_cache, x])
+        # If fade in, merge cached prev block and this block
+        if alpha != None and self.prev_block != None:
+            prev_rgb = self.upsample(prev_rgb)
+            rgb = self.fade_in(alpha, [prev_rgb, rgb])
         
-        return x
+        if last_block:
+            return rgb
+        else:
+            return x, rgb
 
 
 class Discriminator(keras.Model):

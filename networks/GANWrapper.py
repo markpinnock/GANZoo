@@ -80,6 +80,7 @@ class GAN(keras.Model):
         self.fade_iter = num_iter
         self.fade_count = 0
     
+    @tf.function
     def train_step(self, real_images, scale):
         # Determine labels and size of mb for each critic training run
         # (size of real_images = minibatch size * number of critic runs)
@@ -141,7 +142,6 @@ class GAN(keras.Model):
         g_grads = g_tape.gradient(g_loss, self.Generator.trainable_variables)
         self.g_optimiser.apply_gradients(zip(g_grads, self.Generator.trainable_variables))
 
-        # Update metric
+        # Update metric and increment fade count
         self.metric_dict["g_metric"].update_state(g_loss)
-
-        return self.metric_dict
+        self.fade_count += 1

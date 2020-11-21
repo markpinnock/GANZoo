@@ -29,7 +29,7 @@ class PixelNorm(keras.layers.Layer):
         super(PixelNorm, self).__init__()
     
     def call(self, x):
-        x_sq = tf.reduce_mean(tf.square(x, 2.0), axis=-1, keepdims=True)
+        x_sq = tf.reduce_mean(tf.square(x), axis=-1, keepdims=True)
         x_norm = tf.sqrt(x_sq + 1e-8)
         return x / x_norm
 
