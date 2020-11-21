@@ -67,6 +67,7 @@ class GAN(keras.Model):
         self.n_critic = n_critic
         self.fade_iter = 0
         self.fade_count = 0
+        self.alpha = 0
     
     def compile(self, g_optimiser, d_optimiser, loss_key):
         # Not currently used
@@ -80,7 +81,7 @@ class GAN(keras.Model):
         self.fade_iter = num_iter
         self.fade_count = 0
     
-    @tf.function
+    # @tf.function
     def train_step(self, real_images, scale):
         # Determine labels and size of mb for each critic training run
         # (size of real_images = minibatch size * number of critic runs)
@@ -94,9 +95,11 @@ class GAN(keras.Model):
         g_labels = tf.ones((mb_size, 1)) * self.g_label
 
         if self.fade_iter:
-            alpha = self.fade_count / self.fade_iter
+            self.Discriminator.alpha = self.fade_count / self.fade_iter
+            self.Generator.alpha = self.fade_count / self.fade_iter
         else:
-            alpha = None
+            self.Discriminator.alpha = None
+            self.Generator.alpha = None
         # TODO: ADD NOISE TO LABELS AND/OR IMAGES
 
         # Critic training loop
@@ -104,12 +107,12 @@ class GAN(keras.Model):
             # Select minibatch of real images and generate fake images
             d_real_batch = real_images[idx * mb_size:(idx + 1) * mb_size, :, :, :]
             latent_noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
-            d_fake_images = self.Generator(latent_noise, alpha, scale, training=True)
+            d_fake_images = self.Generator(latent_noise, scale, training=True)
 
             # Get gradients from critic predictions and update weights
             with tf.GradientTape() as d_tape:
-                d_pred_fake = self.Discriminator(d_fake_images, alpha, scale, training=True)
-                d_pred_real = self.Discriminator(d_real_batch, alpha, scale, training=True)
+                d_pred_fake = self.Discriminator(d_fake_images, scale, training=True)
+                d_pred_real = self.Discriminator(d_real_batch, scale, training=True)
                 d_predictions = tf.concat([d_pred_fake, d_pred_real], axis=0)
                 d_loss_1 = self.loss(d_labels[0:mb_size], d_predictions[0:mb_size]) # Fake
                 d_loss_2 = self.loss(d_labels[mb_size:], d_predictions[mb_size:]) # Real
@@ -118,7 +121,7 @@ class GAN(keras.Model):
                 # Gradient penalty if indicated
                 # TODO: tidy up loss selection
                 if self.GAN_type == "wasserstein-GP" or "progressive":
-                    grad_penalty = gradient_penalty(d_real_batch, d_fake_images, self.Discriminator, alpha, scale)
+                    grad_penalty = gradient_penalty(d_real_batch, d_fake_images, self.Discriminator, scale)
                     d_loss += 10 * grad_penalty
             
             d_grads = d_tape.gradient(d_loss, self.Discriminator.trainable_variables)
@@ -135,8 +138,8 @@ class GAN(keras.Model):
 
         # Get gradients from critic predictions of generated fake images and update weights
         with tf.GradientTape() as g_tape:
-            g_fake_images = self.Generator(noise, alpha, scale, training=True)
-            g_predictions = self.Discriminator(g_fake_images, alpha, scale, training=True)
+            g_fake_images = self.Generator(noise, scale, training=True)
+            g_predictions = self.Discriminator(g_fake_images, scale, training=True)
             g_loss = self.loss(g_labels, g_predictions)
         
         g_grads = g_tape.gradient(g_loss, self.Generator.trainable_variables)

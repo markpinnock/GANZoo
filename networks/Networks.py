@@ -53,6 +53,8 @@ class ProgGANDiscBlock(keras.layers.Layer):
         # If fade in, cache downsampled input image
         if first_block and alpha != None and self.next_block != None:
             next_rgb = self.downsample(x)
+            # Set from_rgb weights in next block to untrainable to avoid missing gradients
+            self.next_block.from_rgb.trainable = False
             next_rgb = tf.nn.leaky_relu(self.next_block.from_rgb(next_rgb), alpha=0.2)
 
         # If the very first block, perform 1x1 conv
@@ -60,7 +62,6 @@ class ProgGANDiscBlock(keras.layers.Layer):
             x = tf.nn.leaky_relu(self.from_rgb(x), alpha=0.2)
 
         # If this is not the last block
-        # Deactivate from_rgb here !!!
         if self.next_block != None:
             x = tf.nn.leaky_relu(self.conv2(x), alpha=0.2)
             x = tf.nn.leaky_relu(self.conv3(x), alpha=0.2)
@@ -114,8 +115,9 @@ class ProgGANGenBlock(keras.layers.Layer):
         
         # If previous blocks, upsample to_rgb and cache for fade in
         else:
-            # deactivate previous rgb here !!!
             prev_x, prev_rgb = self.prev_block(x, alpha=None, last_block=False)
+            # Set to_rgb weights in prev block to untrainable to avoid missing gradients
+            self.prev_block.to_rgb.trainable = False
             prev_x = self.upsample(prev_x)
             x = tf.nn.leaky_relu(self.pixel_norm(self.conv1(prev_x)), alpha=0.2)
             x = tf.nn.leaky_relu(self.pixel_norm(self.conv2(x)), alpha=0.2)
@@ -155,6 +157,7 @@ class Discriminator(keras.Model):
         else:
             weight_const = None
 
+        self.alpha = None
         self.blocks = []
         self.blocks.append(ProgGANDiscBlock(None, initialiser, weight_const))
 
@@ -172,9 +175,9 @@ class Discriminator(keras.Model):
             test = tf.zeros((2, 4 * (2 ** i), 4 * (2 ** i), 3), dtype=tf.float32)
             assert self.blocks[i](test, alpha=0.5).shape == (2, 1, 1, 1), self.blocks[i](test, alpha=0.5).shape
 
-    def call(self, x, alpha, scale, training=True):
+    def call(self, x, scale, training=True):
         self.blocks[scale].trainable = True
-        x = self.blocks[scale](x, alpha)
+        x = self.blocks[scale](x, self.alpha)
 
         return tf.squeeze(x)
 
@@ -194,6 +197,7 @@ class Generator(keras.Model):
         else:
             weight_const = None
 
+        self.alpha = None
         self.blocks = []
         self.blocks.append(ProgGANGenBlock(latent_dims, None, initialiser, weight_const))
 
@@ -211,9 +215,9 @@ class Generator(keras.Model):
             test = tf.zeros((2, 128), dtype=tf.float32)
             assert self.blocks[i](test, alpha=0.5).shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=0.5).shape
 
-    def call(self, x, alpha, scale, training=True):
+    def call(self, x, scale, training=True):
         self.blocks[scale].trainable = True
-        x = self.blocks[scale](x, alpha)
+        x = self.blocks[scale](x, self.alpha)
 
         return tf.nn.tanh(x)
 

@@ -38,7 +38,7 @@ def wasserstein_loss(labels, predictions):
 
 
 @tf.function
-def gradient_penalty(real_img, fake_img, D, alpha, scale):
+def gradient_penalty(real_img, fake_img, D, scale):
 
     """ Implements gradient penalty for WGAN-GP
         - Takes real and fake images
@@ -49,7 +49,7 @@ def gradient_penalty(real_img, fake_img, D, alpha, scale):
 
     with tf.GradientTape() as tape:
         tape.watch(x_hat)
-        D_hat = D(x_hat, alpha, scale, training=True)
+        D_hat = D(x_hat, scale, training=True)
     
     gradients = tape.gradient(D_hat, x_hat)
     grad_norm = tf.sqrt(tf.reduce_sum(tf.square(gradients), axis=(1, 2)))
