@@ -78,9 +78,26 @@ class GAN(keras.Model):
         self.loss = self.loss_dict[loss_key]
     
     def fade_set(self, num_iter):
+        """ Activates or deactivates fade in """
+
         self.fade_iter = num_iter
         self.fade_count = 0
-    
+
+    def set_trainable_layers(self, scale):
+        """ Sets new block to trainable and sets to_rgb/from_rgb
+            conv layers in old blocks to untrainable
+            to avoid missing gradients """ 
+
+        self.Discriminator.blocks[scale].trainable = True
+        
+        for i in range(0, scale):
+            self.Discriminator.blocks[i].from_rgb.trainable = False
+        
+        self.Generator.blocks[scale].trainable = True
+        
+        for i in range(0, scale):
+            self.Generator.blocks[i].to_rgb.trainable = False
+
     # @tf.function
     def train_step(self, real_images, scale):
         # Determine labels and size of mb for each critic training run

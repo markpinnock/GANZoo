@@ -53,8 +53,7 @@ class ProgGANDiscBlock(keras.layers.Layer):
         # If fade in, cache downsampled input image
         if first_block and alpha != None and self.next_block != None:
             next_rgb = self.downsample(x)
-            # Set from_rgb weights in next block to untrainable to avoid missing gradients
-            self.next_block.from_rgb.trainable = False
+            self.next_block.from_rgb.trainable = False # TODO: TEST DEACTIVATED
             next_rgb = tf.nn.leaky_relu(self.next_block.from_rgb(next_rgb), alpha=0.2)
 
         # If the very first block, perform 1x1 conv
@@ -116,8 +115,7 @@ class ProgGANGenBlock(keras.layers.Layer):
         # If previous blocks, upsample to_rgb and cache for fade in
         else:
             prev_x, prev_rgb = self.prev_block(x, alpha=None, last_block=False)
-            # Set to_rgb weights in prev block to untrainable to avoid missing gradients
-            self.prev_block.to_rgb.trainable = False
+            self.prev_block.to_rgb.trainable = False # TODO: TEST DEACTIVATED
             prev_x = self.upsample(prev_x)
             x = tf.nn.leaky_relu(self.pixel_norm(self.conv1(prev_x)), alpha=0.2)
             x = tf.nn.leaky_relu(self.pixel_norm(self.conv2(x)), alpha=0.2)
@@ -176,9 +174,8 @@ class Discriminator(keras.Model):
             assert self.blocks[i](test, alpha=0.5).shape == (2, 1, 1, 1), self.blocks[i](test, alpha=0.5).shape
 
     def call(self, x, scale, training=True):
-        self.blocks[scale].trainable = True
         x = self.blocks[scale](x, self.alpha)
-
+        
         return tf.squeeze(x)
 
 # TODO: subclass Generator and Discriminator
@@ -216,7 +213,6 @@ class Generator(keras.Model):
             assert self.blocks[i](test, alpha=0.5).shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=0.5).shape
 
     def call(self, x, scale, training=True):
-        self.blocks[scale].trainable = True
         x = self.blocks[scale](x, self.alpha)
 
         return tf.nn.tanh(x)
