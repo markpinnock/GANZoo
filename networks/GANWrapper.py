@@ -8,18 +8,18 @@ from utils.TrainFuncs import least_square_loss, wasserstein_loss, gradient_penal
 class GAN(keras.Model):
 
     """ GAN class
-        - latent_dims: size of generator latent distribution
-        - g_nc: number of channels in generator first layer
+        - resolution: size of output images
+        - g_nc: number of channels in generator last layer
         - d_nc: number of channels in discriminator first layer
         - g_optimiser: generator optimiser e.g. keras.optimizers.Adam()
         - d_optimiser: discriminator optimiser e.g. keras.optimizers.Adam()
         - GAN_type: 'original', 'least_square', 'wasserstein' or 'wasserstein-GP'
         - n_critic: number of discriminator/critic training runs (5 in WGAN, 1 otherwise) """
 
-    def __init__(self, latent_dims, g_nc, d_nc, g_optimiser, d_optimiser, GAN_type, n_critic):
+    def __init__(self, resolution, g_nc, d_nc, g_optimiser, d_optimiser, GAN_type, n_critic):
         super(GAN, self).__init__()
         self.GAN_type = GAN_type
-        self.latent_dims = latent_dims
+        self.latent_dims = resolution
         self.initialiser = keras.initializers.RandomNormal(0, 0.02)
 
         # Choose appropriate loss and initialise metrics
@@ -60,8 +60,19 @@ class GAN(keras.Model):
             cons = False
         # TODO: IMPLEMENT CONSTRAINT TYPE
         self.loss = self.loss_dict[GAN_type]
-        self.Generator = Generator(latent_dims, g_nc, self.initialiser, cons)
-        self.Discriminator = Discriminator(d_nc, self.initialiser, cons)
+
+        self.Generator = Generator(
+            resolution=resolution,
+            nc=g_nc,
+            initialiser=self.initialiser,
+            constraint_type=cons)
+
+        self.Discriminator = Discriminator(
+            resolution=resolution,
+            nc=d_nc,
+            initialiser=self.initialiser,
+            constraint_type=cons)
+
         self.g_optimiser = g_optimiser
         self.d_optimiser = d_optimiser
         self.n_critic = n_critic
