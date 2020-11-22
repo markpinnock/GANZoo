@@ -21,6 +21,26 @@ def trace_graph(model, input_zeros):
         tf.summary.trace_export("graph", step=0)
 
 
+def print_model_summary(model, res):
+    print("===================================")
+    print(model.name)
+    print("===================================")
+
+    weights = []
+    total_weights = 0
+
+    for weight in model.layers[-1].weights:
+        if len(weight.shape) > 1: weights.append(weight.shape.as_list())
+        total_weights += np.prod(weight.shape.as_list())
+
+    for idx, weight in enumerate(weights):
+        print(f"{weight} resolution {res // 2 ** idx}")
+
+    print("===================================")
+    print(f"Total weights: {total_weights}")
+    print("===================================")
+
+
 def Pix2Pix_training_loop(mb_size, epochs, Model, data, latent_sample, scale, fade=False):
     SAVE_PATH = "C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/imgs/test/"
     

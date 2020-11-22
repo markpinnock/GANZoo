@@ -5,14 +5,25 @@ import sys
 import tensorflow.keras as keras
 import tensorflow as tf
 
+
+""" Based on:
+    - Karras et al. Progressive Growing of GANs for Improved Quality, Stability, and Variation
+    - https://arxiv.org/abs/1710.10196 """
+
+# TODO: MS-SSIM
+# TODO: Equalised learning rate
+# TODO: channel numbers
+# TODO: runn avg gen weights
+
 sys.path.append("C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/scripts/")
 
-from training_loops import Pix2Pix_training_loop, trace_graph
+from training_loops import Pix2Pix_training_loop, trace_graph, print_model_summary
 from networks.GANWrapper import GAN
 from utils.DataLoaders import imgPartition, dev_img_loader, img_loader
 
 # Dev dataset
-IMG_PATH = "C:/Users/roybo/OneDrive/Documents/CelebFacesSmall/Imgs/Imgs/"
+# IMG_PATH = "C:/Users/roybo/OneDrive/Documents/CelebFacesSmall/Imgs/Imgs/"
+IMG_PATH = "D:/Imgs/"
 # IMG_PATH = "D:/VAEImages/"
 SAVE_PATH = "C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/imgs/"
 # RES = "LS128x128_Small_100"
@@ -22,12 +33,10 @@ if not os.path.exists(f"{SAVE_PATH}{EXPT}/"):
     os.mkdir(f"{SAVE_PATH}{EXPT}/")
 
 # Set hyperparameters and example latent sample
-MB_SIZE = 64
-EPOCHS = 100
-LATENT_DIM = 128
+RESOLUTION = 128
 NUM_EX = 16
-D_NC = 64
-G_NC = 64
+NDF = 16
+NGF = 16
 GAN_TYPE = "progressive"
 SAVE_CKPT = False
 # TODO: Convert to argparse
@@ -61,7 +70,7 @@ OPT_DICT = {
     }
 }
 
-LATENT_SAMPLE = tf.random.normal([NUM_EX, LATENT_DIM], dtype=tf.float32)
+LATENT_SAMPLE = tf.random.normal([NUM_EX, RESOLUTION], dtype=tf.float32)
 
 # Create dataset
 train_list = os.listdir(IMG_PATH)
@@ -70,8 +79,8 @@ N = len(train_list)
 
 # Create optimisers and compile model
 Model = GAN(
-    latent_dims=LATENT_DIM,
-    g_nc=G_NC, d_nc=D_NC,
+    resolution=RESOLUTION,
+    g_nc=NGF, d_nc=NDF,
     g_optimiser=OPT_DICT[GAN_TYPE]["G_OPT"],
     d_optimiser=OPT_DICT[GAN_TYPE]["D_OPT"],
     GAN_type=GAN_TYPE,
@@ -80,10 +89,12 @@ Model = GAN(
 
 # trace_graph(Model.Generator, tf.zeros((1, 128)))
 # trace_graph(Model.Discriminator, tf.zeros((1, 64, 64, 3)))
+# print_model_summary(Model.Generator, RESOLUTION)
+# print_model_summary(Model.Discriminator, RESOLUTION)
 # exit()
-MB_SIZES = [64, 64, 32, 8, 4]
+MB_SIZES = [128, 128, 64, 16, 8]
 SCALES = [4, 8, 16, 32, 64]
-EPOCHS = [5, 8, 8, 10, 30]
+EPOCHS = [5, 8, 8, 10, 10]
 
 # Set up dataset with minibatch size multiplied by number of critic training runs
 train_ds = tf.data.Dataset.from_generator(
