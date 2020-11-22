@@ -15,7 +15,7 @@ import tensorflow as tf
 # TODO: channel numbers
 # TODO: runn avg gen weights
 
-sys.path.append("C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/scripts/")
+sys.path.append("C:/Users/roybo/Programming/PhD/009_GAN_CT/")
 
 from training_loops import Pix2Pix_training_loop, trace_graph, print_model_summary
 from networks.GANWrapper import GAN
