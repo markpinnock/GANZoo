@@ -20,7 +20,6 @@ class GAN(keras.Model):
         super(GAN, self).__init__()
         self.GAN_type = GAN_type
         self.latent_dims = resolution
-        self.initialiser = keras.initializers.RandomNormal(0, 0.02)
 
         # Choose appropriate loss and initialise metrics
         self.loss_dict = {
@@ -64,13 +63,13 @@ class GAN(keras.Model):
         self.Generator = Generator(
             resolution=resolution,
             nc=g_nc,
-            initialiser=self.initialiser,
+            GAN_type=GAN_type,
             constraint_type=cons)
 
         self.Discriminator = Discriminator(
             resolution=resolution,
             nc=d_nc,
-            initialiser=self.initialiser,
+            GAN_type=GAN_type,
             constraint_type=cons)
 
         self.g_optimiser = g_optimiser

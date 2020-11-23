@@ -11,8 +11,6 @@ import tensorflow as tf
     - https://arxiv.org/abs/1710.10196 """
 
 # TODO: MS-SSIM
-# TODO: Equalised learning rate
-# TODO: channel numbers
 # TODO: runn avg gen weights
 
 sys.path.append("C:/Users/roybo/Programming/PhD/009_GAN_CT/")

@@ -1,9 +1,84 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras as keras
+from tensorflow.python.eager import context
 
 
-""" Inspired by https://machinelearningmastery.com/how-to-train-a-progressive-growing-gan-in-keras-for-synthesizing-faces/ """
+""" Fade in, minibatch std and pixel norm implementation
+    inspired by https://machinelearningmastery.com/how-to-train-a-progressive-growing-gan-in-keras-for-synthesizing-faces/ """
+
+
+class EqLrConv2D(keras.layers.Conv2D):
+
+    """ Overloaded implementation of Conv2D layer
+        for equalised learning rate, taken from
+        https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/keras/layers/convolutional.py """
+
+    def __init__(self, **kwargs):
+        """ Initialise Conv2D with the usual arguments """
+        super(EqLrConv2D, self).__init__(**kwargs)
+        
+        self.weight_scale = None
+    
+    def call(self, inputs):
+        """ Overloaded call to apply weight scale at runtime """
+        if self.weight_scale is None:
+            fan_in = tf.reduce_prod(self.kernel.shape[:-1])
+            self.weight_scale = tf.cast(tf.sqrt(2 / fan_in), tf.float32)
+
+        # Perform convolution and add bias weights
+        outputs = self._convolution_op(inputs, self.kernel * self.weight_scale)
+        outputs = tf.nn.bias_add(outputs, self.bias, data_format="NHWC")
+
+        # Activation not needed
+        return outputs
+
+
+class EqLrConv2DTranspose(keras.layers.Conv2DTranspose):
+
+    """ Overloaded implementation of Conv2DTranspose layer
+        for equalised learning rate - will work only
+        for (1, 1, 1) -> (4, 4, N) transpose conv - taken from
+        https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/keras/layers/convolutional.py"""
+
+    def __init__(self, **kwargs):
+        """ Initialise Conv2DTranspose with the usual arguments """
+
+        super(EqLrConv2DTranspose, self).__init__(**kwargs)
+        
+        self.weight_scale = None
+
+    def call(self, inputs):
+        """ Overloaded call to apply weight scale at runtime """
+        if not self.weight_scale:
+            fan_in = tf.reduce_prod(self.kernel.shape[:-1])
+            self.weight_scale = tf.cast(tf.sqrt(2 / fan_in), tf.float32)
+        
+        # 4x4xN output only
+        inputs_shape = inputs.shape
+        batch_size = inputs_shape[0]
+        out_height, out_width = 4, 4
+        output_shape = (batch_size, out_height, out_width, self.filters)
+        output_shape_tensor = tf.stack(output_shape)
+        
+        outputs = keras.backend.conv2d_transpose(
+            inputs,
+            self.kernel * self.weight_scale,
+            output_shape_tensor,
+            strides=self.strides,
+            padding=self.padding,
+            data_format=self.data_format,
+            dilation_rate=self.dilation_rate)
+
+        if not context.executing_eagerly():
+            out_shape = self.compute_output_shape(inputs.shape)
+            outputs.set_shape(out_shape)
+
+        if self.use_bias:
+            outputs = tf.nn.bias_add(outputs,self.bias, data_format="NHWC")
+
+        # Activation not needed
+        return outputs
 
 
 class FadeInLayer(keras.layers.Layer):
@@ -35,8 +110,6 @@ class PixelNorm(keras.layers.Layer):
         return x / x_norm
 
 
-# TODO: implement equalised learning rate
-
 class GANBlock(keras.layers.Layer):
     def __init__(self, nc, initialiser, weight_const, batchnorm, transpose):
         super(GANBlock, self).__init__()
@@ -60,24 +133,31 @@ class GANBlock(keras.layers.Layer):
 
 
 class ProgGANDiscBlock(keras.layers.Layer):
-    def __init__(self, ch, next_block, res, initialiser, weight_const):
+    def __init__(self, ch, next_block, res, GAN_type, weight_const):
         super(ProgGANDiscBlock, self).__init__()
         double_ch = np.min([ch * 2, res])
 
+        if GAN_type == "progressive":
+            Conv2D = EqLrConv2D
+            initialiser = keras.initializers.RandomNormal(0, 1)
+        else:
+            Conv2D = keras.layers.Conv2D 
+            initialiser = keras.initializers.RandomNormal(0, 0.02)
+
         # conv1 only used if first block
         self.next_block = next_block
-        self.from_rgb = keras.layers.Conv2D(ch, (1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+        self.from_rgb = Conv2D(filters=ch, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
         
         # If this is last discriminator block, collapse to prediction
         if next_block == None:
             self.mb_stats = MinibatchStd()
-            self.conv2 = keras.layers.Conv2D(double_ch, (3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
-            self.out = keras.layers.Conv2D(1, (4, 4), strides=(1, 1), padding="VALID", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.conv2 = Conv2D(filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.out = Conv2D(filters=1, kernel_size=(4, 4), strides=(1, 1), padding="VALID", kernel_initializer=initialiser, kernel_constraint=weight_const)
         
         # If next blocks exist, conv and downsample
         else:
-            self.conv2 = keras.layers.Conv2D(ch, (3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
-            self.conv3 = keras.layers.Conv2D(double_ch, (3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.conv2 = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.conv3 = Conv2D(filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
             self.downsample = keras.layers.AveragePooling2D()
             self.fade_in = FadeInLayer()
 
@@ -114,27 +194,36 @@ class ProgGANDiscBlock(keras.layers.Layer):
 
 
 class ProgGANGenBlock(keras.layers.Layer):
-    def __init__(self, latent_dims, ch, prev_block, initialiser, weight_const):
+    def __init__(self, latent_dims, ch, prev_block, GAN_type, weight_const):
         super(ProgGANGenBlock, self).__init__()
 
         self.prev_block = prev_block
         self.pixel_norm = PixelNorm()
+
+        if GAN_type == "progressive":
+            Conv2D = EqLrConv2D
+            Conv2DTranspose = EqLrConv2DTranspose
+            initialiser = keras.initializers.RandomNormal(0, 1)
+        else:
+            Conv2D = keras.layers.Conv2D
+            Conv2DTranspose = keras.layers.Conv2DTranspose
+            initialiser = keras.initializers.RandomNormal(0, 0.02)
         
         # If this is first generator block, reshape latent noise
         if prev_block == None:
             self.reshaped = keras.layers.Reshape((1, 1, latent_dims))
-            self.conv1 = keras.layers.Conv2DTranspose(ch, (4, 4), strides=(1, 1), padding="VALID", kernel_initializer=initialiser, kernel_constraint=weight_const)
-            self.conv2 = keras.layers.Conv2D(ch, (3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.conv1 = Conv2DTranspose(filters=ch, kernel_size=(4, 4), strides=(1, 1), padding="VALID", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.conv2 = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
         
         # If previous blocks exist, we use those
         else:
             self.upsample = keras.layers.UpSampling2D()
-            self.conv1 = keras.layers.Conv2D(ch, (3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
-            self.conv2 = keras.layers.Conv2D(ch, (3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.conv1 = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.conv2 = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
             self.fade_in = FadeInLayer()
         
         # Output to rgb
-        self.to_rgb = keras.layers.Conv2D(3, (1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+        self.to_rgb = Conv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
 
     def call(self, x, alpha=None, last_block=True):
 
