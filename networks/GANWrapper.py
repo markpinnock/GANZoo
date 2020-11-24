@@ -16,10 +16,10 @@ class GAN(keras.Model):
         - GAN_type: 'original', 'least_square', 'wasserstein' or 'wasserstein-GP'
         - n_critic: number of discriminator/critic training runs (5 in WGAN, 1 otherwise) """
 
-    def __init__(self, resolution, g_nc, d_nc, g_optimiser, d_optimiser, GAN_type, n_critic):
+    def __init__(self, config, g_optimiser, d_optimiser, n_critic):
         super(GAN, self).__init__()
-        self.GAN_type = GAN_type
-        self.latent_dims = resolution
+        self.latent_dims = config["LATENT_DIM"]
+        self.GAN_type = config["MODEL"]
 
         # Choose appropriate loss and initialise metrics
         self.loss_dict = {
@@ -37,17 +37,17 @@ class GAN(keras.Model):
         }
 
         # Set up real/fake labels
-        if GAN_type == "wasserstein":
+        if self.GAN_type == "wasserstein":
             self.d_real_label = -1.0
             self.d_fake_label = 1.0
             self.g_label = -1.0
             cons = True
-        elif GAN_type == "wasserstein-GP":
+        elif self.GAN_type == "wasserstein-GP":
             self.d_real_label = -1.0
             self.d_fake_label = 1.0
             self.g_label = -1.0
             cons = False
-        elif GAN_type == "progressive":
+        elif self.GAN_type == "progressive":
             self.d_real_label = -1.0
             self.d_fake_label = 1.0
             self.g_label = -1.0
@@ -58,18 +58,14 @@ class GAN(keras.Model):
             self.g_label = 0.0
             cons = False
         # TODO: IMPLEMENT CONSTRAINT TYPE
-        self.loss = self.loss_dict[GAN_type]
+        self.loss = self.loss_dict[self.GAN_type]
 
         self.Generator = Generator(
-            resolution=resolution,
-            nc=g_nc,
-            GAN_type=GAN_type,
+            config=config,
             constraint_type=cons)
 
         self.Discriminator = Discriminator(
-            resolution=resolution,
-            nc=d_nc,
-            GAN_type=GAN_type,
+            config=config,
             constraint_type=cons)
 
         self.g_optimiser = g_optimiser

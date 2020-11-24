@@ -1,6 +1,7 @@
 import datetime
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import tensorflow as tf
 
 
@@ -41,24 +42,32 @@ def print_model_summary(model, res):
     print("===================================")
 
 
-def Pix2Pix_training_loop(mb_size, epochs, Model, data, latent_sample, scale, fade=False):
-    SAVE_PATH = "C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/imgs/test/"
-    
+def training_loop(config, idx, Model, data, latent_sample, fade=False):
+    SCALE = config["SCALES"][idx]
+    EPOCHS = config["EPOCHS"][idx]
+
+    IMG_SAVE_PATH = f"{config['SAVE_PATH']}images/{config['EXPT_NAME']}/"
+    if not os.path.exists(IMG_SAVE_PATH): os.mkdir(IMG_SAVE_PATH)
+    LOG_SAVE_PATH = f"{config['SAVE_PATH']}logs/{config['EXPT_NAME']}/"
+    if not os.path.exists(LOG_SAVE_PATH): os.mkdir(LOG_SAVE_PATH)
+    MODEL_SAVE_PATH = f"{config['SAVE_PATH']}models/{config['EXPT_NAME']}/"
+    if not os.path.exists(IMG_SAVE_PATH): os.mkdir(MODEL_SAVE_PATH)
+
     if fade:
-        num_batches = 10000 // mb_size
-        num_iter = num_batches * epochs
+        num_batches = 10000 // config["MB_SIZE"][idx]
+        num_iter = num_batches * EPOCHS
     else:
         num_iter = 0
     
     Model.fade_set(num_iter)
 
     # TODO: convert dataloader to alter scale
-    down_samp = 64 // scale
-    scale_idx = int(np.log2(scale / 4))
+    down_samp = 64 // SCALE
+    scale_idx = int(np.log2(SCALE / 4))
 
     Model.set_trainable_layers(scale_idx)
 
-    for epoch in range(epochs):
+    for epoch in range(EPOCHS):
 
         Model.metric_dict["g_metric"].reset_states()
         Model.metric_dict["d_metric_1"].reset_states()
@@ -68,7 +77,7 @@ def Pix2Pix_training_loop(mb_size, epochs, Model, data, latent_sample, scale, fa
             imgs = imgs[:, ::down_samp, ::down_samp, :]
             _ = Model.train_step(imgs, scale=scale_idx)
 
-        print(f"Scale {scale} Fade {fade} Ep {epoch + 1}, G: {Model.metric_dict['g_metric'].result():.4f}, D1: {Model.metric_dict['d_metric_1'].result():.4f}, D2: {Model.metric_dict['d_metric_2'].result():.4f}")
+        print(f"Scale {SCALE} Fade {fade} Ep {epoch + 1}, G: {Model.metric_dict['g_metric'].result():.4f}, D1: {Model.metric_dict['d_metric_1'].result():.4f}, D2: {Model.metric_dict['d_metric_2'].result():.4f}")
 
         # Generate example images
         if (epoch + 1) % 1 == 0 and not fade:
@@ -82,7 +91,7 @@ def Pix2Pix_training_loop(mb_size, epochs, Model, data, latent_sample, scale, fa
                 plt.axis('off')
 
             plt.tight_layout()
-            plt.savefig(f"{SAVE_PATH}/{scale_idx}_scale_{scale}_epoch_{epoch + 1:02d}.png", dpi=250)
+            plt.savefig(f"{IMG_SAVE_PATH}{scale_idx}_scale_{SCALE}_epoch_{epoch + 1:02d}.png", dpi=250)
             plt.close()
 
         # Save checkpoint

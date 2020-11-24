@@ -10,7 +10,7 @@ class BaseGAN(keras.Model):
     
     """ Base class for generator and discriminator """
 
-    def __init__(self, resolution, nc, GAN_type, constraint_type):
+    def __init__(self, config, constraint_type):
         super(BaseGAN, self).__init__()
         
         if constraint_type == "clip":
@@ -23,10 +23,8 @@ class BaseGAN(keras.Model):
 
         self.alpha = None
         self.blocks = []
-        self.resolution = resolution
-        self.num_layers = int(np.log2(resolution)) - 1
-        self.channels = [np.min([(nc * 2 ** i), resolution]) for i in range(self.num_layers) ]
-        self.channels.reverse()
+        self.resolution = config["MAX_RES"]
+        self.num_layers = int(np.log2(self.resolution)) - 1
 
     def call(self):
         raise NotImplementedError
@@ -43,13 +41,16 @@ class Discriminator(BaseGAN):
 
         Returns keras.Model """
 
-    def __init__(self, resolution, nc, GAN_type, constraint_type):
-        super(Discriminator, self).__init__(resolution, nc, GAN_type, constraint_type)
+    def __init__(self, config, constraint_type):
+        super(Discriminator, self).__init__(config, constraint_type)
+
+        self.channels = [np.min([(config["NDF"] * 2 ** i), self.resolution]) for i in range(self.num_layers) ]
+        self.channels.reverse()
         
-        self.blocks.append(ProgGANDiscBlock(self.channels[0], None, resolution, GAN_type, self.weight_const))
+        self.blocks.append(ProgGANDiscBlock(self.channels[0], None, config["MAX_RES"], config["MODEL"], self.weight_const))
 
         for i in range(1, self.num_layers):
-            new_block = ProgGANDiscBlock(self.channels[i], self.blocks[i - 1], resolution, GAN_type, self.weight_const)
+            new_block = ProgGANDiscBlock(self.channels[i], self.blocks[i - 1], config["MAX_RES"], config["MODEL"], self.weight_const)
             new_block.trainable = False
             self.blocks.append(new_block)
 
@@ -75,14 +76,17 @@ class Generator(BaseGAN):
         - g_nc: number of channels in first layer
         - initaliser: e.g. keras.initalizers.RandomNormal() """
 
-    def __init__(self, resolution, nc, GAN_type, constraint_type):
-        super(Generator, self).__init__(resolution, nc, GAN_type, constraint_type)
+    def __init__(self, config, constraint_type):
+        super(Generator, self).__init__(config, constraint_type)
 
-        latent_dims = np.min([resolution, 512])
-        self.blocks.append(ProgGANGenBlock(latent_dims, self.channels[0], None, GAN_type, self.weight_const))
+        latent_dims = np.min([config["LATENT_DIM"], 512])
+        self.channels = [np.min([(config["NGF"] * 2 ** i), self.resolution]) for i in range(self.num_layers) ]
+        self.channels.reverse()
+
+        self.blocks.append(ProgGANGenBlock(latent_dims, self.channels[0], None, config["MODEL"], self.weight_const))
 
         for i in range(1, self.num_layers):
-            new_block = ProgGANGenBlock(latent_dims, self.channels[i], self.blocks[i - 1], GAN_type, self.weight_const)
+            new_block = ProgGANGenBlock(latent_dims, self.channels[i], self.blocks[i - 1], config["MODEL"], self.weight_const)
             new_block.trainable = False
             self.blocks.append(new_block)
 
