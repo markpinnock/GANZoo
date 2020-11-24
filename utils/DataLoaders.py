@@ -23,7 +23,7 @@ class ImgLoader:
             img = tf.image.convert_image_dtype(img, tf.float32)
             img = tf.image.resize(img, (res, res))
             img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
-            if not aug: img = (img * 2) - 1
+            img = (img * 2) - 1
             i += 1
 
             yield img
@@ -89,8 +89,6 @@ class DiffAug:
         if self.aug_config["colour"]: x = self.saturation(x)
         if self.aug_config["translation"]: x = self.translation(x)
         if self.aug_config["cutout"]: x = self.cutout(x)
-        x = (x - tf.reduce_min(x, axis=(1, 2, 3), keepdims=True)) / (tf.reduce_max(x, axis=(1, 2, 3), keepdims=True) - tf.reduce_min(x, axis=(1, 2, 3), keepdims=True))
-        x = (x * 2) - 1
 
         return x
 

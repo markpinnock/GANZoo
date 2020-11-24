@@ -18,6 +18,7 @@ from utils.DataLoaders import ImgLoader, DiffAug
 
 # TODO: MS-SSIM
 # TODO: runn avg gen weights
+# TODO: data aug prob
 
 # Handle arguments
 parser = argparse.ArgumentParser()

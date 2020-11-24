@@ -137,7 +137,7 @@ class GAN(keras.Model):
             d_real_batch = real_images[idx * mb_size:(idx + 1) * mb_size, :, :, :]
             latent_noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
             d_fake_images = self.Generator(latent_noise, scale, training=True)
-            
+
             # DiffAug if required
             if self.Aug:
                 d_real_batch = self.Aug.augment(d_real_batch)
