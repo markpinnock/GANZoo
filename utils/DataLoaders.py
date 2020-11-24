@@ -1,64 +1,61 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import tensorflow as tf
 
 
-def dev_img_loader(file_path, img_list):
-    # To merge with img_loader
-    np.random.shuffle(img_list)
-    N = len(img_list)
-    i = 0
+class ImgLoader:
+    def __init__(self, config):
+        self.file_path = config["DATA_PATH"]
+        dataset_size = config["DATASET_SIZE"]
+        img_list = os.listdir(self.file_path)
+        np.random.shuffle(img_list)
+        if dataset_size: self.img_list = img_list[0:dataset_size]
+    
+    def data_generator(self, res):
+        np.random.shuffle(self.img_list)
+        N = len(self.img_list)
+        i = 0
 
-    while i < N:
-        img = tf.io.read_file(file_path + img_list[i])
-        img = tf.image.decode_jpeg(img, channels=3)
-        img = tf.image.convert_image_dtype(img, tf.float32)
-        img = (img * 2) - 1
-        img = tf.image.resize(img, (64, 64))
-        i += 1
-        yield img
-
-
-def img_loader(file_path, img_list):
-    np.random.shuffle(img_list)
-    N = len(img_list)
-    i = 0
-
-    while i < N:
-        img = np.load(file_path + img_list[i])
-        img = (img - img.min()) / (img.max() - img.min()) * 2 - 1
-        i += 1
-        yield img[::1, ::1, tf.newaxis]
-
-
-def imgPartition(file_path, partition_file):
-    train_list = []
-    val_list = []
-    test_list = []
-
-    with open(file_path + partition_file, 'r') as f:
-        for line in f:
-            if line.split(' ')[1] == '0\n':
-                train_list.append(line.split(' ')[0])
-            elif line.split(' ')[1] == '1\n':
-                val_list.append(line.split(' ')[0])
-            elif line.split(' ')[1] == '2\n':
-                test_list.append(line.split(' ')[0])
-            else:
-                raise ValueError("Incorrect train/val/test index")
-
-    return train_list, val_list, test_list
+        while i < N:
+            img = tf.io.read_file(f"{self.file_path}{self.img_list[i]}")
+            img = tf.image.decode_jpeg(img, channels=3)
+            img = tf.image.convert_image_dtype(img, tf.float32)
+            img = (img * 2) - 1
+            img = tf.image.resize(img, (res, res))
+            i += 1
+            yield img
 
 
 if __name__ == "__main__":
 
-    FILE_PATH = "C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/Train/"
+    FILE_PATH = "C:/Users/roybo/OneDrive/Documents/CelebFacesSmall/Imgs/Imgs/"
     imgs_list = os.listdir(FILE_PATH)
     MB_SIZE = 4
 
+    TestLoader = ImgLoader({"DATA_PATH": FILE_PATH, "DATASET_SIZE": 8})
+
     train_ds = tf.data.Dataset.from_generator(
-        imgLoader, args=[FILE_PATH, imgs_list], output_types=tf.float32)
-    
+        TestLoader.data_generator, args=[16], output_types=tf.float32)
+
     for img in train_ds.batch(MB_SIZE):
-        print(img.numpy().min(), img.numpy().max())
-        # pass
+        plt.subplot(2, 2, 1)
+        plt.imshow(img[0, ...])
+        plt.subplot(2, 2, 2)
+        plt.imshow(img[1, ...])
+        plt.subplot(2, 2, 3)
+        plt.imshow(img[2, ...])
+        plt.subplot(2, 2, 4)
+        plt.imshow(img[3, ...])
+        plt.show()
+
+    for img in train_ds.batch(MB_SIZE):
+        plt.subplot(2, 2, 1)
+        plt.imshow(img[0, ...])
+        plt.subplot(2, 2, 2)
+        plt.imshow(img[1, ...])
+        plt.subplot(2, 2, 3)
+        plt.imshow(img[2, ...])
+        plt.subplot(2, 2, 4)
+        plt.imshow(img[3, ...])
+        plt.show()
