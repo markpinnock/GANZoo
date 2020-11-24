@@ -78,23 +78,18 @@ if CONFIG["EXPT"]["VERBOSE"]:
 DataLoader = ImgLoader(CONFIG["EXPT"])
 train_ds = tf.data.Dataset.from_generator(
     DataLoader.data_generator,
-    args=[CONFIG["EXPT"]["SCALES"][0], CONFIG["EXPT"]["AUGMENT"]],
+    args=[CONFIG["EXPT"]["SCALES"][0], CONFIG["HYPERPARAMS"]["AUGMENT"]],
     output_types=tf.float32
     ).batch(CONFIG["EXPT"]["MB_SIZE"][0] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][0])
 
-if CONFIG["EXPT"]["AUGMENT"]:
-    Augmentation = DiffAug({"colour": True, "translation": True, "cutout": True})
-else:
-    Augmentation = None
-
-Model = training_loop(CONFIG["EXPT"], idx=0, Model=Model, data=train_ds, Aug=Augmentation, latent_sample=LATENT_SAMPLE, fade=False)
+Model = training_loop(CONFIG["EXPT"], idx=0, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)
 
 for i in range(1, len(CONFIG["EXPT"]["SCALES"])):
     train_ds = tf.data.Dataset.from_generator(
         DataLoader.data_generator,
-        args=[CONFIG["EXPT"]["SCALES"][i], CONFIG["EXPT"]["AUGMENT"]],
+        args=[CONFIG["EXPT"]["SCALES"][i], CONFIG["HYPERPARAMS"]["AUGMENT"]],
         output_types=tf.float32
         ).batch(CONFIG["EXPT"]["MB_SIZE"][0] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][0])
 
-    Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, Aug=Augmentation, latent_sample=LATENT_SAMPLE, fade=True)
-    Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, Aug=Augmentation, latent_sample=LATENT_SAMPLE, fade=False)
+    Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=True)
+    Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)

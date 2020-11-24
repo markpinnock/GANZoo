@@ -3,6 +3,7 @@ import tensorflow.keras as keras
 
 from networks.Networks import Discriminator, Generator
 from utils.TrainFuncs import least_square_loss, wasserstein_loss, gradient_penalty
+from utils.DataLoaders import DiffAug
 
 
 class GAN(keras.Model):
@@ -68,6 +69,11 @@ class GAN(keras.Model):
             config=config,
             constraint_type=cons)
 
+        if config["AUGMENT"]:
+            self.Aug = DiffAug({"colour": True, "translation": True, "cutout": True})
+        else:
+            self.Aug = None
+
         self.g_optimiser = g_optimiser
         self.d_optimiser = d_optimiser
         self.n_critic = n_critic
@@ -131,6 +137,11 @@ class GAN(keras.Model):
             d_real_batch = real_images[idx * mb_size:(idx + 1) * mb_size, :, :, :]
             latent_noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
             d_fake_images = self.Generator(latent_noise, scale, training=True)
+            
+            # DiffAug if required
+            if self.Aug:
+                d_real_batch = self.Aug.augment(d_real_batch)
+                d_fake_images = self.Aug.augment(d_fake_images)
 
             # Get gradients from critic predictions and update weights
             with tf.GradientTape() as d_tape:
@@ -162,6 +173,7 @@ class GAN(keras.Model):
         # Get gradients from critic predictions of generated fake images and update weights
         with tf.GradientTape() as g_tape:
             g_fake_images = self.Generator(noise, scale, training=True)
+            if self.Aug: g_fake_images = self.Aug.augment(g_fake_images)
             g_predictions = self.Discriminator(g_fake_images, scale, training=True)
             g_loss = self.loss(g_labels, g_predictions)
         
