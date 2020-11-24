@@ -87,3 +87,19 @@ for i in range(1, len(CONFIG["EXPT"]["SCALES"])):
 
     Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=True)
     Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)
+
+Model = training_loop(CONFIG["EXPT"], idx=0, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)
+
+for i in range(1, len(CONFIG["EXPT"]["SCALES"])):
+    train_ds = tf.data.Dataset.from_generator(
+<<<<<<< Updated upstream
+        dev_img_loader, args=[CONFIG["EXPT"]["DATA_PATH"], train_list], output_types=tf.float32).batch(CONFIG["EXPT"]["MB_SIZE"][i] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][i])
+=======
+        DataLoader.data_generator,
+        args=[CONFIG["EXPT"]["SCALES"][i], CONFIG["EXPT"]["AUGMENT"]],
+        output_types=tf.float32
+        ).batch(CONFIG["EXPT"]["MB_SIZE"][0] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][0])
+>>>>>>> Stashed changes
+
+    Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=True)
+    Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)
