@@ -53,8 +53,8 @@ OPT_DICT = {
         "N_CRITIC": 5
     },
     "progressive": {
-        "G_OPT": keras.optimizers.Adam(1e-3, 0.0, 0.9),
-        "D_OPT": keras.optimizers.Adam(1e-3, 0.0, 0.9),
+        "G_OPT": keras.optimizers.Adam(1e-3, 0.0, 0.99),
+        "D_OPT": keras.optimizers.Adam(1e-3, 0.0, 0.99),
         "N_CRITIC": 1
     }
 }

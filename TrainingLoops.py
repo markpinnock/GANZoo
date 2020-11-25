@@ -54,7 +54,7 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
     if not os.path.exists(IMG_SAVE_PATH): os.mkdir(MODEL_SAVE_PATH)
 
     if fade:
-        num_batches = 10000 // config["MB_SIZE"][idx]
+        num_batches = config["DATASET_SIZE"] // config["MB_SIZE"][idx]
         num_iter = num_batches * EPOCHS
     else:
         num_iter = 0
