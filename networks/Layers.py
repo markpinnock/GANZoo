@@ -2,11 +2,36 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.python.eager import context
+from tensorflow.python.ops import gen_math_ops, nn_ops
 
 
 """ Fade in, minibatch std and pixel norm implementation
     inspired by https://machinelearningmastery.com/how-to-train-a-progressive-growing-gan-in-keras-for-synthesizing-faces/ """
 
+
+class EqDense(keras.layers.Dense):
+
+    """ Overloaded implementation of Dense layer
+        for equalised learning rate, taken from
+        https://github.com/tensorflow/tensorflow/blob/v2.3.1/tensorflow/python/keras/layers/core.py """
+    
+    def __init__(self, **kwargs):
+        """ Initialise Dense with the usual arguments """
+        super(EqDense, self).__init__(**kwargs)
+
+        self.weight_scale = None
+    
+    def call(self, inputs, gain=tf.sqrt(2.0)):
+        if self.weight_scale is None:
+            fan_in = tf.reduce_prod(self.kernel.shape[:-1])
+            self.weight_scale = gain / tf.sqrt(tf.cast(fan_in, tf.float32))
+
+        # Perform matmul
+        outputs = gen_math_ops.MatMul(a=inputs, b=self.kernel * self.weight_scale)
+        outputs = nn_ops.bias_add(outputs, self.bias)
+        
+        # Activation not needed
+        return outputs
 
 class EqLrConv2D(keras.layers.Conv2D):
 
@@ -20,11 +45,11 @@ class EqLrConv2D(keras.layers.Conv2D):
         
         self.weight_scale = None
     
-    def call(self, inputs):
+    def call(self, inputs, gain=tf.sqrt(2.0)):
         """ Overloaded call to apply weight scale at runtime """
         if self.weight_scale is None:
             fan_in = tf.reduce_prod(self.kernel.shape[:-1])
-            self.weight_scale = tf.cast(tf.sqrt(2 / fan_in), tf.float32)
+            self.weight_scale = gain / tf.sqrt(tf.cast(fan_in, tf.float32))
 
         # Perform convolution and add bias weights
         outputs = self._convolution_op(inputs, self.kernel * self.weight_scale)
@@ -48,11 +73,11 @@ class EqLrConv2DTranspose(keras.layers.Conv2DTranspose):
         
         self.weight_scale = None
 
-    def call(self, inputs):
+    def call(self, inputs, gain=tf.sqrt(2.0)):
         """ Overloaded call to apply weight scale at runtime """
         if not self.weight_scale:
             fan_in = tf.reduce_prod(self.kernel.shape[:-1])
-            self.weight_scale = tf.cast(tf.sqrt(2 / fan_in), tf.float32)
+            self.weight_scale = gain / tf.sqrt(tf.cast(fan_in, tf.float32))
         
         # 4x4xN output only
         inputs_shape = inputs.shape
@@ -138,9 +163,11 @@ class ProgGANDiscBlock(keras.layers.Layer):
         double_ch = np.min([ch * 2, res])
 
         if GAN_type == "progressive":
+            Dense = EqDense
             Conv2D = EqLrConv2D
             initialiser = keras.initializers.RandomNormal(0, 1)
         else:
+            Dense = keras.layers.Dense
             Conv2D = keras.layers.Conv2D 
             initialiser = keras.initializers.RandomNormal(0, 0.02)
 
@@ -151,13 +178,15 @@ class ProgGANDiscBlock(keras.layers.Layer):
         # If this is last discriminator block, collapse to prediction
         if next_block == None:
             self.mb_stats = MinibatchStd()
-            self.conv2 = Conv2D(filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
-            self.out = Conv2D(filters=1, kernel_size=(4, 4), strides=(1, 1), padding="VALID", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.conv = Conv2D(filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.flat = keras.layers.Flatten()
+            self.dense = Dense(units=res, kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.out = Dense(units=1, kernel_initializer=initialiser, kernel_constraint=weight_const)
         
         # If next blocks exist, conv and downsample
         else:
-            self.conv2 = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
-            self.conv3 = Conv2D(filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.conv1 = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.conv2 = Conv2D(filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
             self.downsample = keras.layers.AveragePooling2D()
             self.fade_in = FadeInLayer()
 
@@ -174,8 +203,8 @@ class ProgGANDiscBlock(keras.layers.Layer):
 
         # If this is not the last block
         if self.next_block != None:
+            x = tf.nn.leaky_relu(self.conv1(x), alpha=0.2)
             x = tf.nn.leaky_relu(self.conv2(x), alpha=0.2)
-            x = tf.nn.leaky_relu(self.conv3(x), alpha=0.2)
             x = self.downsample(x)
 
             # If fade in, merge with cached layer
@@ -187,8 +216,10 @@ class ProgGANDiscBlock(keras.layers.Layer):
         # If this is the last block
         else:
             x = self.mb_stats(x)
-            x = tf.nn.leaky_relu(self.conv2(x), alpha=0.2)
-            x = self.out(x)
+            x = tf.nn.leaky_relu(self.conv(x), alpha=0.2)
+            x = self.flat(x)
+            x = tf.nn.leaky_relu(self.dense(x))
+            x = self.out(x, gain=1) # Gain as in original implementation
 
         return x
 
@@ -201,19 +232,21 @@ class ProgGANGenBlock(keras.layers.Layer):
         self.pixel_norm = PixelNorm()
 
         if GAN_type == "progressive":
+            Dense = EqDense
             Conv2D = EqLrConv2D
             Conv2DTranspose = EqLrConv2DTranspose
             initialiser = keras.initializers.RandomNormal(0, 1)
         else:
+            Dense = keras.layers.Dense
             Conv2D = keras.layers.Conv2D
             Conv2DTranspose = keras.layers.Conv2DTranspose
             initialiser = keras.initializers.RandomNormal(0, 0.02)
         
-        # If this is first generator block, reshape latent noise
+        # If this is first generator block, pass latent noise into dense and reshape
         if prev_block == None:
-            self.reshaped = keras.layers.Reshape((1, 1, latent_dims))
-            self.conv1 = Conv2DTranspose(filters=ch, kernel_size=(4, 4), strides=(1, 1), padding="VALID", kernel_initializer=initialiser, kernel_constraint=weight_const)
-            self.conv2 = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.dense = Dense(units=latent_dims * 16, kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.reshaped = keras.layers.Reshape((4, 4, latent_dims))
+            self.conv = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
         
         # If previous blocks exist, we use those
         else:
@@ -229,9 +262,9 @@ class ProgGANGenBlock(keras.layers.Layer):
 
         # If first block, upsample noise
         if self.prev_block == None:
+            x = tf.nn.leaky_relu(self.pixel_norm(self.dense(x, gain=tf.sqrt(2.0) / 4))) # As in original implementation
             x = self.reshaped(x)
-            x = tf.nn.leaky_relu(self.pixel_norm(self.conv1(x)), alpha=0.2)
-            x = tf.nn.leaky_relu(self.pixel_norm(self.conv2(x)), alpha=0.2)
+            x = tf.nn.leaky_relu(self.pixel_norm(self.conv(x)), alpha=0.2)
         
         # If previous blocks, upsample to_rgb and cache for fade in
         else:

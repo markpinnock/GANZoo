@@ -19,6 +19,9 @@ from utils.DataLoaders import ImgLoader, DiffAug
 # TODO: MS-SSIM
 # TODO: runn avg gen weights
 # TODO: data aug prob
+# TODO: FC after latent
+# TODO: Linear in place of tanh
+# TODO: truncation trick
 
 # Handle arguments
 parser = argparse.ArgumentParser()

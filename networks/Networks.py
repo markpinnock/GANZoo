@@ -57,11 +57,11 @@ class Discriminator(BaseGAN):
         # Recursive self test on start up
         for i in range(self.num_layers):
             test = tf.zeros((2, 4 * (2 ** i), 4 * (2 ** i), 3), dtype=tf.float32)
-            assert self.blocks[i](test, alpha=None).shape == (2, 1, 1, 1), self.blocks[i](test).shape
+            assert self.blocks[i](test, alpha=None).shape == (2, 1), self.blocks[i](test).shape
         
         for i in range(self.num_layers):
             test = tf.zeros((2, 4 * (2 ** i), 4 * (2 ** i), 3), dtype=tf.float32)
-            assert self.blocks[i](test, alpha=0.5).shape == (2, 1, 1, 1), self.blocks[i](test, alpha=0.5).shape
+            assert self.blocks[i](test, alpha=0.5).shape == (2, 1), self.blocks[i](test, alpha=0.5).shape
 
     def call(self, x, scale, training=True):
         x = self.blocks[scale](x, self.alpha)
