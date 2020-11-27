@@ -130,12 +130,12 @@ class GAN(keras.Model):
             assert len(self.Generator.weights) == len(self.EMAGenerator.weights)
             # TODO: potentially dangerous as no variable scopes
             for idx in range(len(self.EMAGenerator.weights)):
-                self.EMAGenerator.weights[idx] = self.Generator.weights[idx]
+                self.EMAGenerator.weights[idx].assign(self.Generator.weights[idx])
             
         else:
             for idx in range(len(self.EMAGenerator.trainable_weights)):
                 new_weights = self.EMA_beta * self.EMAGenerator.trainable_weights[idx] + (1 - self.EMA_beta) * self.Generator.trainable_weights[idx]
-                self.EMAGenerator.trainable_weights[idx] = new_weights
+                self.EMAGenerator.trainable_weights[idx].assign(new_weights)
 
     # @tf.function
     def train_step(self, real_images, scale):
