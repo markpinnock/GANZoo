@@ -86,7 +86,7 @@ class DiffAug:
         return x
     
     def augment(self, x):
-        if self.aug_config["colour"]: x = self.saturation(x)
+        if self.aug_config["colour"]: x = self.contrast(self.saturation(self.brightness(x)))
         if self.aug_config["translation"]: x = self.translation(x)
         if self.aug_config["cutout"]: x = self.cutout(x)
 
