@@ -118,6 +118,11 @@ class GAN(keras.Model):
         for i in range(0, scale):
             self.Generator.blocks[i].to_rgb.trainable = False
 
+        self.EMAGenerator.blocks[scale].trainable = True
+        
+        for i in range(0, scale):
+            self.EMAGenerator.blocks[i].to_rgb.trainable = False
+
     def update_mvag_generator(self, initial=False):
         """ Updates EMAGenerator with Generator weights """
         # If first use, clone Generator
