@@ -69,6 +69,13 @@ class GAN(keras.Model):
             config=config,
             constraint_type=cons)
 
+        # Exponential moving average of generator weights for images
+        self.EMAGenerator = Generator(
+            config=config,
+            constraint_type=cons)
+
+        self.update_mvag_generator(initial=True)
+
         if config["AUGMENT"]:
             self.Aug = DiffAug({"colour": True, "translation": True, "cutout": True})
         else:
@@ -109,6 +116,20 @@ class GAN(keras.Model):
         
         for i in range(0, scale):
             self.Generator.blocks[i].to_rgb.trainable = False
+
+    def update_mvag_generator(self, initial=False):
+        """ Updates EMAGenerator with Generator weights """
+        # If first use, clone Generator
+        if initial:
+            assert len(self.Generator.weights) == len(self.EMAGenerator.weights)
+            # TODO: potentially dangerous as no variable scopes
+            for idx in range(len(self.EMAGenerator.weights)):
+                self.EMAGenerator.weights[idx] = self.Generator.weights[idx]
+            
+        else:
+            for idx in range(len(self.EMAGenerator.trainable_weights)):
+                new_weights = 0.99 * self.EMAGenerator.trainable_weights[idx] + 0.01 * self.Generator.trainable_weights[idx]
+                self.EMAGenerator.trainable_weights[idx] = new_weights
 
     # @tf.function
     def train_step(self, real_images, scale):
@@ -179,6 +200,7 @@ class GAN(keras.Model):
         
         g_grads = g_tape.gradient(g_loss, self.Generator.trainable_variables)
         self.g_optimiser.apply_gradients(zip(g_grads, self.Generator.trainable_variables))
+        self.update_mvag_generator()
 
         # Update metric and increment fade count
         self.metric_dict["g_metric"].update_state(g_loss)
