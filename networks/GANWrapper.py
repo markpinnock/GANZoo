@@ -84,6 +84,7 @@ class GAN(keras.Model):
         self.g_optimiser = g_optimiser
         self.d_optimiser = d_optimiser
         self.n_critic = n_critic
+        self.EMA_beta = config["EMA_BETA"]
         self.fade_iter = 0
         self.fade_count = 0
         self.alpha = 0
@@ -128,7 +129,7 @@ class GAN(keras.Model):
             
         else:
             for idx in range(len(self.EMAGenerator.trainable_weights)):
-                new_weights = 0.99 * self.EMAGenerator.trainable_weights[idx] + 0.01 * self.Generator.trainable_weights[idx]
+                new_weights = self.EMA_beta * self.EMAGenerator.trainable_weights[idx] + (1 - self.EMA_beta) * self.Generator.trainable_weights[idx]
                 self.EMAGenerator.trainable_weights[idx] = new_weights
 
     # @tf.function
