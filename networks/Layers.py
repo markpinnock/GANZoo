@@ -250,7 +250,7 @@ class ProgGANGenBlock(keras.layers.Layer):
         
         # If previous blocks exist, we use those
         else:
-            self.upsample = keras.layers.UpSampling2D()
+            self.upsample = keras.layers.UpSampling2D(interpolation="bilinear")
             self.conv1 = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
             self.conv2 = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
             self.fade_in = FadeInLayer()
@@ -262,16 +262,16 @@ class ProgGANGenBlock(keras.layers.Layer):
 
         # If first block, upsample noise
         if self.prev_block == None:
-            x = tf.nn.leaky_relu(self.pixel_norm(self.dense(x, gain=tf.sqrt(2.0) / 4))) # As in original implementation
+            x = self.pixel_norm(tf.nn.leaky_relu(self.dense(x, gain=tf.sqrt(2.0) / 4), alpha=0.2)) # As in original implementation
             x = self.reshaped(x)
-            x = tf.nn.leaky_relu(self.pixel_norm(self.conv(x)), alpha=0.2)
+            x = self.pixel_norm(tf.nn.leaky_relu(self.conv(x), alpha=0.2))
         
         # If previous blocks, upsample to_rgb and cache for fade in
         else:
             prev_x, prev_rgb = self.prev_block(x, alpha=None, last_block=False)
             prev_x = self.upsample(prev_x)
-            x = tf.nn.leaky_relu(self.pixel_norm(self.conv1(prev_x)), alpha=0.2)
-            x = tf.nn.leaky_relu(self.pixel_norm(self.conv2(x)), alpha=0.2)
+            x = self.pixel_norm(tf.nn.leaky_relu(self.conv1(prev_x), alpha=0.2))
+            x = self.pixel_norm(tf.nn.leaky_relu(self.conv2(x), alpha=0.2))
 
         # Create output image
         rgb = self.to_rgb(x)
