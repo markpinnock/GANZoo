@@ -24,7 +24,7 @@ class ImgLoader:
             img = tf.image.resize(img, (res, res))
             img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
             img = (img * 2) - 1
-            if np.random.rand() > 0.5: img = img[:, :, ::-1, :]
+            if np.random.rand() > 0.5: img = img[:, ::-1, :]
             i += 1
 
             yield img
