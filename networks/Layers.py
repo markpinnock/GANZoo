@@ -8,45 +8,48 @@ from tensorflow.python.ops import gen_math_ops, nn_ops
 """ Fade in, minibatch std and pixel norm implementation
     inspired by https://machinelearningmastery.com/how-to-train-a-progressive-growing-gan-in-keras-for-synthesizing-faces/ """
 
+#-------------------------------------------------------------------------
+""" Overloaded implementation of Dense layer for equalised learning rate,
+    taken from https://github.com/tensorflow/tensorflow/blob/v2.3.1/tensorflow/python/keras/layers/core.py """
 
 class EqDense(keras.layers.Dense):
 
-    """ Overloaded implementation of Dense layer
-        for equalised learning rate, taken from
-        https://github.com/tensorflow/tensorflow/blob/v2.3.1/tensorflow/python/keras/layers/core.py """
-    
     def __init__(self, **kwargs):
         """ Initialise Dense with the usual arguments """
+
         super(EqDense, self).__init__(**kwargs)
 
         self.weight_scale = None
     
     def call(self, inputs, gain=tf.sqrt(2.0)):
+        """ Overloaded call to apply weight scale at runtime """
+
         if self.weight_scale is None:
             fan_in = tf.reduce_prod(self.kernel.shape[:-1])
             self.weight_scale = gain / tf.sqrt(tf.cast(fan_in, tf.float32))
 
-        # Perform matmul
+        # Perform dense layer matmul
         outputs = gen_math_ops.MatMul(a=inputs, b=self.kernel * self.weight_scale)
         outputs = nn_ops.bias_add(outputs, self.bias)
         
         # Activation not needed
         return outputs
 
+#-------------------------------------------------------------------------
+""" Overloaded implementation of Conv2D layer for equalised learning rate,
+    taken from https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/keras/layers/convolutional.py """
+
 class EqLrConv2D(keras.layers.Conv2D):
 
-    """ Overloaded implementation of Conv2D layer
-        for equalised learning rate, taken from
-        https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/keras/layers/convolutional.py """
-
     def __init__(self, **kwargs):
-        """ Initialise Conv2D with the usual arguments """
+        """ Initialise with the usual arguments """
+
         super(EqLrConv2D, self).__init__(**kwargs)
-        
         self.weight_scale = None
     
     def call(self, inputs, gain=tf.sqrt(2.0)):
         """ Overloaded call to apply weight scale at runtime """
+
         if self.weight_scale is None:
             fan_in = tf.reduce_prod(self.kernel.shape[:-1])
             self.weight_scale = gain / tf.sqrt(tf.cast(fan_in, tf.float32))
@@ -58,23 +61,22 @@ class EqLrConv2D(keras.layers.Conv2D):
         # Activation not needed
         return outputs
 
+#-------------------------------------------------------------------------
+""" Overloaded implementation of Conv2DTranspose layer for equalised learning
+    rate - will work only for (1, 1, 1) -> (4, 4, N) transpose conv - taken from
+    https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/keras/layers/convolutional.py"""
 
 class EqLrConv2DTranspose(keras.layers.Conv2DTranspose):
-
-    """ Overloaded implementation of Conv2DTranspose layer
-        for equalised learning rate - will work only
-        for (1, 1, 1) -> (4, 4, N) transpose conv - taken from
-        https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/keras/layers/convolutional.py"""
-
+    
     def __init__(self, **kwargs):
-        """ Initialise Conv2DTranspose with the usual arguments """
+        """ Initialise with the usual arguments """
 
         super(EqLrConv2DTranspose, self).__init__(**kwargs)
-        
         self.weight_scale = None
 
     def call(self, inputs, gain=tf.sqrt(2.0)):
-        """ Overloaded call to apply weight scale at runtime """
+        """ Overloaded call method applies weight scale at runtime """
+    
         if not self.weight_scale:
             fan_in = tf.reduce_prod(self.kernel.shape[:-1])
             self.weight_scale = gain / tf.sqrt(tf.cast(fan_in, tf.float32))
@@ -102,9 +104,11 @@ class EqLrConv2DTranspose(keras.layers.Conv2DTranspose):
         if self.use_bias:
             outputs = tf.nn.bias_add(outputs,self.bias, data_format="NHWC")
 
-        # Activation not needed
+        # Activation not needed in call()
         return outputs
 
+#-------------------------------------------------------------------------
+""" Fade in layer - interpolates between two layers by factor alpha """
 
 class FadeInLayer(keras.layers.Layer):
     def __init__(self):
@@ -113,7 +117,9 @@ class FadeInLayer(keras.layers.Layer):
     def call(self, alpha, xs):
         assert (len(xs)) == 2
         return (1.0 - alpha) * xs[0] + alpha * xs[1]
-    
+
+#-------------------------------------------------------------------------
+""" Minibatch statistics layer """
 
 class MinibatchStd(keras.layers.Layer):
     def __init__(self):
@@ -124,6 +130,8 @@ class MinibatchStd(keras.layers.Layer):
         stat_channel = tf.tile(mean_std_dev, x.shape[:-1] + [1])
         return tf.concat([x, stat_channel], axis=-1)
 
+#-------------------------------------------------------------------------
+""" Implementation of pixel normalisation layer """
 
 class PixelNorm(keras.layers.Layer):
     def __init__(self):
@@ -134,6 +142,8 @@ class PixelNorm(keras.layers.Layer):
         x_norm = tf.sqrt(x_sq + 1e-8)
         return x / x_norm
 
+#-------------------------------------------------------------------------
+""" Generic GAN block - not currently used """
 
 class GANBlock(keras.layers.Layer):
     def __init__(self, nc, initialiser, weight_const, batchnorm, transpose):
@@ -156,13 +166,20 @@ class GANBlock(keras.layers.Layer):
             
             return tf.nn.leaky_relu(x, alpha=0.2)
 
+#-------------------------------------------------------------------------
+""" Convolutional layer """
+
+# class
+
+#-------------------------------------------------------------------------
+""" Progressive GAN Discriminator block """
 
 class ProgGANDiscBlock(keras.layers.Layer):
-    def __init__(self, ch, next_block, res, GAN_type, weight_const):
+    def __init__(self, ch, res, next_block, config, weight_const):
         super(ProgGANDiscBlock, self).__init__()
-        double_ch = np.min([ch * 2, res])
+        double_ch = np.min([ch * 2, config["MAX_CHANNELS"]])
 
-        if GAN_type == "progressive":
+        if config["MODEL"] == "progressive":
             Dense = EqDense
             Conv2D = EqLrConv2D
             initialiser = keras.initializers.RandomNormal(0, 1)
@@ -223,15 +240,17 @@ class ProgGANDiscBlock(keras.layers.Layer):
 
         return x
 
+#-------------------------------------------------------------------------
+""" Progressive GAN Generator block """
 
 class ProgGANGenBlock(keras.layers.Layer):
-    def __init__(self, latent_dims, ch, prev_block, GAN_type, weight_const):
+    def __init__(self, ch, res, prev_block, config, weight_const):
         super(ProgGANGenBlock, self).__init__()
 
         self.prev_block = prev_block
         self.pixel_norm = PixelNorm()
 
-        if GAN_type == "progressive":
+        if config["MODEL"] == "progressive":
             Dense = EqDense
             Conv2D = EqLrConv2D
             Conv2DTranspose = EqLrConv2DTranspose
@@ -244,8 +263,8 @@ class ProgGANGenBlock(keras.layers.Layer):
         
         # If this is first generator block, pass latent noise into dense and reshape
         if prev_block == None:
-            self.dense = Dense(units=latent_dims * 16, kernel_initializer=initialiser, kernel_constraint=weight_const)
-            self.reshaped = keras.layers.Reshape((4, 4, latent_dims))
+            self.dense = Dense(units=config["LATENT_DIM"] * res * res, kernel_initializer=initialiser, kernel_constraint=weight_const)
+            self.reshaped = keras.layers.Reshape((res, res, config["LATENT_DIM"]))
             self.conv = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
         
         # If previous blocks exist, we use those
