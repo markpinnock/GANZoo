@@ -79,7 +79,7 @@ class Generator(BaseGAN):
     def __init__(self, config, constraint_type):
         super(Generator, self).__init__(config, constraint_type)
 
-        latent_dims = np.min([config["LATENT_DIM"], 512])
+        latent_dims = config["LATENT_DIM"]
         self.channels = [np.min([(config["NGF"] * 2 ** i), self.resolution]) for i in range(self.num_layers) ]
         self.channels.reverse()
 
@@ -93,14 +93,14 @@ class Generator(BaseGAN):
         # Recursive self test on start up
         for i in range(0, self.num_layers):
             test = tf.zeros((2, latent_dims), dtype=tf.float32)
-            assert self.blocks[i](test, alpha=None).shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=None).shape
+            assert self.blocks[i](test, alpha=None)[1].shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=None).shape
 
         for i in range(0, self.num_layers):
             test = tf.zeros((2, latent_dims), dtype=tf.float32)
-            assert self.blocks[i](test, alpha=0.5).shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=0.5).shape
+            assert self.blocks[i](test, alpha=0.5)[1].shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=0.5).shape
 
     def call(self, x, scale, training=True):
-        x = self.blocks[scale](x, self.alpha)
+        _, rgb = self.blocks[scale](x, self.alpha)
 
-        return tf.nn.tanh(x)
+        return tf.nn.tanh(rgb)
 
