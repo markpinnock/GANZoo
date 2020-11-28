@@ -17,7 +17,6 @@ from utils.DataLoaders import ImgLoader, DiffAug
     - https://arxiv.org/abs/1710.10196 """
 
 # TODO: MS-SSIM
-# TODO: runn avg gen weights
 # TODO: data aug prob
 # TODO: Linear in place of tanh
 # TODO: truncation trick

@@ -45,10 +45,7 @@ class EqLrConv2D(keras.layers.Conv2D):
         """ Initialise with the usual arguments """
 
         super(EqLrConv2D, self).__init__(**kwargs)
-        self.weight_scale = None
-    
-    def call(self, inputs, gain=tf.sqrt(2.0)):
-        """ Overloaded call to apply weight scale at runtime """
+        
 
         if self.weight_scale is None:
             fan_in = tf.reduce_prod(self.kernel.shape[:-1])
@@ -56,11 +53,7 @@ class EqLrConv2D(keras.layers.Conv2D):
 
         # Perform convolution and add bias weights
         outputs = self._convolution_op(inputs, self.kernel * self.weight_scale)
-        outputs = tf.nn.bias_add(outputs, self.bias, data_format="NHWC")
-
-        # Activation not needed
-        return outputs
-
+        
 #-------------------------------------------------------------------------
 """ Overloaded implementation of Conv2DTranspose layer for equalised learning
     rate - will work only for (1, 1, 1) -> (4, 4, N) transpose conv - taken from
@@ -110,37 +103,27 @@ class EqLrConv2DTranspose(keras.layers.Conv2DTranspose):
 #-------------------------------------------------------------------------
 """ Fade in layer - interpolates between two layers by factor alpha """
 
-class FadeInLayer(keras.layers.Layer):
-    def __init__(self):
-        super(FadeInLayer, self).__init__()
-
-    def call(self, alpha, xs):
-        assert (len(xs)) == 2
-        return (1.0 - alpha) * xs[0] + alpha * xs[1]
+def fade_in(alpha, old, new):
+    return (1.0 - alpha) * old + alpha * new
 
 #-------------------------------------------------------------------------
 """ Minibatch statistics layer """
 
-class MinibatchStd(keras.layers.Layer):
-    def __init__(self):
-        super(MinibatchStd, self).__init__()
+def mb_stddev(x):
+    mean_std_dev = tf.reduce_mean(tf.math.reduce_std(x, axis=0, keepdims=True), keepdims=True)
+    stat_channel = tf.tile(mean_std_dev, x.shape[:-1] + [1])
     
-    def call(self, x):
-        mean_std_dev = tf.reduce_mean(tf.math.reduce_std(x, axis=0, keepdims=True), keepdims=True)
-        stat_channel = tf.tile(mean_std_dev, x.shape[:-1] + [1])
-        return tf.concat([x, stat_channel], axis=-1)
+    return tf.concat([x, stat_channel], axis=-1)
 
 #-------------------------------------------------------------------------
 """ Implementation of pixel normalisation layer """
 
-class PixelNorm(keras.layers.Layer):
-    def __init__(self):
-        super(PixelNorm, self).__init__()
+def pixel_norm(x):
+    x_sq = tf.reduce_mean(tf.square(x), axis=-1, keepdims=True)
+    x_norm = tf.sqrt(x_sq + 1e-8)
     
-    def call(self, x):
-        x_sq = tf.reduce_mean(tf.square(x), axis=-1, keepdims=True)
-        x_norm = tf.sqrt(x_sq + 1e-8)
-        return x / x_norm
+    return x / x_norm
+
 
 #-------------------------------------------------------------------------
 """ Generic GAN block - not currently used """
@@ -188,13 +171,11 @@ class ProgGANDiscBlock(keras.layers.Layer):
             Conv2D = keras.layers.Conv2D 
             initialiser = keras.initializers.RandomNormal(0, 0.02)
 
-        # conv1 only used if first block
         self.next_block = next_block
         self.from_rgb = Conv2D(filters=ch, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
         
         # If this is last discriminator block, collapse to prediction
         if next_block == None:
-            self.mb_stats = MinibatchStd()
             self.conv = Conv2D(filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
             self.flat = keras.layers.Flatten()
             self.dense = Dense(units=res, kernel_initializer=initialiser, kernel_constraint=weight_const)
@@ -205,16 +186,15 @@ class ProgGANDiscBlock(keras.layers.Layer):
             self.conv1 = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
             self.conv2 = Conv2D(filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
             self.downsample = keras.layers.AveragePooling2D()
-            self.fade_in = FadeInLayer()
 
     def call(self, x, alpha=None, first_block=True):
         
-        # If fade in, cache downsampled input image
+        # If fade in, pass downsampled image into next block and cache
         if first_block and alpha != None and self.next_block != None:
             next_rgb = self.downsample(x)
             next_rgb = tf.nn.leaky_relu(self.next_block.from_rgb(next_rgb), alpha=0.2)
 
-        # If the very first block, perform 1x1 conv
+        # If the very first block, perform 1x1 conv on rgb
         if first_block:
             x = tf.nn.leaky_relu(self.from_rgb(x), alpha=0.2)
 
@@ -226,13 +206,13 @@ class ProgGANDiscBlock(keras.layers.Layer):
 
             # If fade in, merge with cached layer
             if first_block and alpha != None and self.next_block != None:
-                x = self.fade_in(alpha, [next_rgb, x])
+                x = fade_in(alpha, next_rgb, x)
             
             x = self.next_block(x, alpha=None, first_block=False)
         
         # If this is the last block
         else:
-            x = self.mb_stats(x)
+            x = mb_stddev(x)
             x = tf.nn.leaky_relu(self.conv(x), alpha=0.2)
             x = self.flat(x)
             x = tf.nn.leaky_relu(self.dense(x))
@@ -248,7 +228,6 @@ class ProgGANGenBlock(keras.layers.Layer):
         super(ProgGANGenBlock, self).__init__()
 
         self.prev_block = prev_block
-        self.pixel_norm = PixelNorm()
 
         if config["MODEL"] == "progressive":
             Dense = EqDense
@@ -272,25 +251,24 @@ class ProgGANGenBlock(keras.layers.Layer):
             self.upsample = keras.layers.UpSampling2D(interpolation="bilinear")
             self.conv1 = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
             self.conv2 = Conv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
-            self.fade_in = FadeInLayer()
         
         # Output to rgb
         self.to_rgb = Conv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, kernel_constraint=weight_const)
 
-    def call(self, x, alpha=None, last_block=True):
+    def call(self, x, alpha=None):
 
         # If first block, upsample noise
         if self.prev_block == None:
-            x = self.pixel_norm(tf.nn.leaky_relu(self.dense(x, gain=tf.sqrt(2.0) / 4), alpha=0.2)) # As in original implementation
+            x = pixel_norm(tf.nn.leaky_relu(self.dense(x, gain=tf.sqrt(2.0) / 4), alpha=0.2)) # As in original implementation
             x = self.reshaped(x)
-            x = self.pixel_norm(tf.nn.leaky_relu(self.conv(x), alpha=0.2))
+            x = pixel_norm(tf.nn.leaky_relu(self.conv(x), alpha=0.2))
         
-        # If previous blocks, upsample to_rgb and cache for fade in
+        # If not first block, upsample to_rgb and cache for fade in
         else:
-            prev_x, prev_rgb = self.prev_block(x, alpha=None, last_block=False)
+            prev_x, prev_rgb = self.prev_block(x, alpha=None)
             prev_x = self.upsample(prev_x)
-            x = self.pixel_norm(tf.nn.leaky_relu(self.conv1(prev_x), alpha=0.2))
-            x = self.pixel_norm(tf.nn.leaky_relu(self.conv2(x), alpha=0.2))
+            x = pixel_norm(tf.nn.leaky_relu(self.conv1(prev_x), alpha=0.2))
+            x = pixel_norm(tf.nn.leaky_relu(self.conv2(x), alpha=0.2))
 
         # Create output image
         rgb = self.to_rgb(x)
@@ -298,9 +276,6 @@ class ProgGANGenBlock(keras.layers.Layer):
         # If fade in, merge cached prev block and this block
         if alpha != None and self.prev_block != None:
             prev_rgb = self.upsample(prev_rgb)
-            rgb = self.fade_in(alpha, [prev_rgb, rgb])
+            rgb = fade_in(alpha, prev_rgb, rgb)
         
-        if last_block:
-            return rgb
-        else:
-            return x, rgb
+        return x, rgb

@@ -49,11 +49,11 @@ class Discriminator(BaseGAN):
 
         self.channels = [np.min([(config["NDF"] * 2 ** i), config["MAX_CHANNELS"]]) for i in range(self.num_layers)]
         self.channels.reverse()
-
-        self.blocks.append(ProgGANDiscBlock(self.channels[0], self.resolutions[0], None, config, self.weight_const))
+        
+        self.blocks.append(ProgGANDiscBlock(self.channels[0], None, config["MAX_RES"], config["MODEL"], self.weight_const))
 
         for i in range(1, self.num_layers):
-            new_block = ProgGANDiscBlock(self.channels[i], self.resolutions[i], self.blocks[i - 1], config, self.weight_const)
+            new_block = ProgGANDiscBlock(self.channels[i], self.blocks[i - 1], config["MAX_RES"], config["MODEL"], self.weight_const)
             new_block.trainable = False
             self.blocks.append(new_block)
 
@@ -97,14 +97,14 @@ class Generator(BaseGAN):
         # Recursive self test on start up
         for i in range(0, self.num_layers):
             test = tf.zeros((2, latent_dims), dtype=tf.float32)
-            assert self.blocks[i](test, alpha=None).shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=None).shape
+            assert self.blocks[i](test, alpha=None)[1].shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=None).shape
 
         for i in range(0, self.num_layers):
             test = tf.zeros((2, latent_dims), dtype=tf.float32)
-            assert self.blocks[i](test, alpha=0.5).shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=0.5).shape
+            assert self.blocks[i](test, alpha=0.5)[1].shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=0.5).shape
 
     def call(self, x, scale, training=True):
-        x = self.blocks[scale](x, self.alpha)
+        _, rgb = self.blocks[scale](x, self.alpha)
 
-        return tf.nn.tanh(x)
+        return tf.nn.tanh(rgb)
 
