@@ -110,12 +110,15 @@ def fade_in(alpha, old, new):
     return (1.0 - alpha) * old + alpha * new
     
 
-def mb_stddev(x):
-    mean_std_dev = tf.reduce_mean(tf.math.reduce_std(x, axis=0, keepdims=True), keepdims=True)
-    stat_channel = tf.tile(mean_std_dev, x.shape[:-1] + [1])
+def mb_stddev(x, group_size=4):
+    dims = x.shape
+    group_size = tf.reduce_min([group_size, dims[0]])
+    y = tf.reshape(x, [group_size, -1, dims[1], dims[2], dims[3]])
+    y = tf.reduce_mean(tf.math.reduce_std(y, axis=0), axis=[1, 2, 3], keepdims=True)
+    y = tf.tile(y, [group_size, dims[1], dims[2], 1])
     
-    return tf.concat([x, stat_channel], axis=-1)
-
+    return tf.concat([x, y], axis=-1)
+  
 
 def pixel_norm(x):
     x_sq = tf.reduce_mean(tf.square(x), axis=-1, keepdims=True)

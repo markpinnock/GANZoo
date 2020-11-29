@@ -177,7 +177,8 @@ class GAN(keras.Model):
                 d_predictions = tf.concat([d_pred_fake, d_pred_real], axis=0)
                 d_loss_1 = self.loss(d_labels[0:mb_size], d_predictions[0:mb_size]) # Fake
                 d_loss_2 = self.loss(d_labels[mb_size:], d_predictions[mb_size:]) # Real
-                d_loss = d_loss_1 + d_loss_2 + 0.001 * tf.reduce_mean(tf.square(d_predictions[mb_size:]))
+                d_loss_2 += 0.001 * tf.square(d_predictions[mb_size:]) # Drift term
+                d_loss = d_loss_1 + d_loss_2
             
                 # Gradient penalty if indicated
                 # TODO: tidy up loss selection

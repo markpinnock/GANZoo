@@ -44,13 +44,13 @@ class Discriminator(BaseGAN):
     def __init__(self, config, constraint_type):
         super(Discriminator, self).__init__(config, constraint_type)
 
-        self.channels = [np.min([(config["NDF"] * 2 ** i), self.resolution]) for i in range(self.num_layers) ]
+        self.channels = [np.min([(config["NDF"] * 2 ** i), config["MAX_CHANNELS"]]) for i in range(self.num_layers) ]
         self.channels.reverse()
         
-        self.blocks.append(ProgGANDiscBlock(self.channels[0], None, config["MAX_RES"], config["MODEL"], self.weight_const))
+        self.blocks.append(ProgGANDiscBlock(self.channels[0], None, config["MAX_CHANNELS"], config["MODEL"], self.weight_const))
 
         for i in range(1, self.num_layers):
-            new_block = ProgGANDiscBlock(self.channels[i], self.blocks[i - 1], config["MAX_RES"], config["MODEL"], self.weight_const)
+            new_block = ProgGANDiscBlock(self.channels[i], self.blocks[i - 1], config["MAX_CHANNELS"], config["MODEL"], self.weight_const)
             new_block.trainable = False
             self.blocks.append(new_block)
 
@@ -80,7 +80,7 @@ class Generator(BaseGAN):
         super(Generator, self).__init__(config, constraint_type)
 
         latent_dims = config["LATENT_DIM"]
-        self.channels = [np.min([(config["NGF"] * 2 ** i), self.resolution]) for i in range(self.num_layers) ]
+        self.channels = [np.min([(config["NGF"] * 2 ** i), config["MAX_CHANNELS"]]) for i in range(self.num_layers) ]
         self.channels.reverse()
 
         self.blocks.append(ProgGANGenBlock(latent_dims, self.channels[0], None, config["MODEL"], self.weight_const))
