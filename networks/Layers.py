@@ -249,6 +249,7 @@ class ProgGANGenBlock(keras.layers.Layer):
 
         # If first block, upsample noise
         if self.prev_block == None:
+            x = pixel_norm(x)
             x = pixel_norm(tf.nn.leaky_relu(self.dense(x, gain=tf.sqrt(2.0) / 4), alpha=0.2)) # As in original implementation
             x = self.reshaped(x)
             x = pixel_norm(tf.nn.leaky_relu(self.conv(x), alpha=0.2))
