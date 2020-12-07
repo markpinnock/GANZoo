@@ -61,8 +61,6 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
     
     Model.fade_set(num_iter)
 
-    # TODO: convert dataloader to alter scale
-    down_samp = 64 // SCALE
     scale_idx = int(np.log2(SCALE / 4))
 
     Model.set_trainable_layers(scale_idx)
@@ -74,6 +72,7 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
         Model.metric_dict["d_metric_2"].reset_states()
 
         for imgs in data:
+            if np.random.rand() > 0.5: imgs = imgs[:, :, ::-1, :]
             _ = Model.train_step(imgs, scale=scale_idx)
 
         print(f"Scale {SCALE} Fade {fade} Ep {epoch + 1}, G: {Model.metric_dict['g_metric'].result():.4f}, D1: {Model.metric_dict['d_metric_1'].result():.4f}, D2: {Model.metric_dict['d_metric_2'].result():.4f}")

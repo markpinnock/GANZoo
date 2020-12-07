@@ -78,20 +78,30 @@ if CONFIG["EXPT"]["VERBOSE"]:
 
 # Set up dataset with minibatch size multiplied by number of critic training runs
 DataLoader = ImgLoader(CONFIG["EXPT"])
-train_ds = tf.data.Dataset.from_generator(
-    DataLoader.data_generator,
-    args=[CONFIG["EXPT"]["SCALES"][0], CONFIG["HYPERPARAMS"]["AUGMENT"]],
-    output_types=tf.float32
-    ).batch(CONFIG["EXPT"]["MB_SIZE"][0] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][0])
+
+if CONFIG["EXPT"]["FROM_RAM"]:
+    train_ds = tf.data.Dataset.from_tensor_slices(
+        DataLoader.data_loader(res=CONFIG["EXPT"]["SCALES"][0])
+        ).batch(CONFIG["EXPT"]["MB_SIZE"][0] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"])
+else:
+    train_ds = tf.data.Dataset.from_generator(
+        DataLoader.data_generator,
+        args=[CONFIG["EXPT"]["SCALES"][0]], output_types=tf.float32
+        ).batch(CONFIG["EXPT"]["MB_SIZE"][0] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][0])
 
 Model = training_loop(CONFIG["EXPT"], idx=0, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)
 
 for i in range(1, len(CONFIG["EXPT"]["SCALES"])):
-    train_ds = tf.data.Dataset.from_generator(
-        DataLoader.data_generator,
-        args=[CONFIG["EXPT"]["SCALES"][i], CONFIG["HYPERPARAMS"]["AUGMENT"]],
-        output_types=tf.float32
-        ).batch(CONFIG["EXPT"]["MB_SIZE"][0] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][0])
+
+    if CONFIG["EXPT"]["FROM_RAM"]:
+        train_ds = tf.data.Dataset.from_tensor_slices(
+            DataLoader.data_loader(res=CONFIG["EXPT"]["SCALES"][0])
+            ).batch(CONFIG["EXPT"]["MB_SIZE"][i] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"])
+    else:
+        train_ds = tf.data.Dataset.from_generator(
+            DataLoader.data_generator,
+            args=[CONFIG["EXPT"]["SCALES"][i]], output_types=tf.float32
+            ).batch(CONFIG["EXPT"]["MB_SIZE"][i] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][i])
 
     Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=True)
     Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)

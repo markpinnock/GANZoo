@@ -12,7 +12,21 @@ class ImgLoader:
         np.random.shuffle(self.img_list)
         if dataset_size: self.img_list = self.img_list[0:dataset_size]
     
-    def data_generator(self, res, aug):
+    def data_loader(self, res):
+        imgs = []
+
+        for img in self.img_list:
+            img = tf.io.read_file(f"{self.file_path}{img}")
+            img = tf.image.decode_jpeg(img, channels=3)
+            img = tf.image.convert_image_dtype(img, tf.float32)
+            img = tf.image.resize(img, (res, res))
+            img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
+            img = (img * 2) - 1
+            imgs.append(img)
+        
+        return imgs
+
+    def data_generator(self, res):
         np.random.shuffle(self.img_list)
         N = len(self.img_list)
         i = 0
@@ -24,7 +38,7 @@ class ImgLoader:
             img = tf.image.resize(img, (res, res))
             img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
             img = (img * 2) - 1
-            if np.random.rand() > 0.5: img = img[:, ::-1, :]
+
             i += 1
 
             yield img
