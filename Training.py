@@ -95,7 +95,7 @@ for i in range(1, len(CONFIG["EXPT"]["SCALES"])):
 
     if CONFIG["EXPT"]["FROM_RAM"]:
         train_ds = tf.data.Dataset.from_tensor_slices(
-            DataLoader.data_loader(res=CONFIG["EXPT"]["SCALES"][0])
+            DataLoader.data_loader(res=CONFIG["EXPT"]["SCALES"][i])
             ).batch(CONFIG["EXPT"]["MB_SIZE"][i] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"])
     else:
         train_ds = tf.data.Dataset.from_generator(
