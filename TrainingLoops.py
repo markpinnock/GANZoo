@@ -57,11 +57,7 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
         num_iter = 0
     
     Model.fade_set(num_iter)
-
-    # TODO: convert dataloader to alter scale
-    down_samp = 64 // SCALE
-    scale_idx = int(np.log2(SCALE / 4))
-
+    scale_idx = int(np.log2(SCALE / config["SCALES"][0]))
     Model.set_trainable_layers(scale_idx)
 
     for epoch in range(EPOCHS):

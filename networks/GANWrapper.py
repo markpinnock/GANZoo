@@ -99,10 +99,10 @@ class GAN(keras.Model):
     def set_trainable_layers(self, scale):
         """ Sets new block to trainable and sets to_rgb/from_rgb
             conv layers in old blocks to untrainable
-            to avoid missing gradients """ 
+            to avoid missing gradients warning """ 
 
         self.Discriminator.blocks[scale].trainable = True
-        
+       
         for i in range(0, scale):
             self.Discriminator.blocks[i].from_rgb.trainable = False
         
@@ -123,8 +123,9 @@ class GAN(keras.Model):
         # If first use, clone Generator
         if initial:
             assert len(self.Generator.weights) == len(self.EMAGenerator.weights)
-            # TODO: potentially dangerous as no variable scopes
+
             for idx in range(len(self.EMAGenerator.weights)):
+                assert self.EMAGenerator.weights[idx].name == self.Generator.weights[idx].name
                 self.EMAGenerator.weights[idx].assign(self.Generator.weights[idx])
             
         else:

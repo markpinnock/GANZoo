@@ -122,7 +122,7 @@ class StyleModulation(keras.layers.Layer):
         w = tf.reshape(w, [-1, 2, 1, 1, self.nf])
 
         # Style components
-        ys = w[:, 0, :, :, :] + 1 # Initialise bias to 1
+        ys = w[:, 0, :, :, :] + 1 # I.e. initialise bias to 1
         yb = w[:, 1, :, :, :]
 
         return x * ys + yb
@@ -138,7 +138,7 @@ class AdditiveNoise(keras.layers.Layer):
         super().__init__(name=name)
 
         self.nf = nf
-        self.noise_weight = self.add_weight(name="noise_weight", shape=[1, 1, 1, nf], initializer="zeros", trainable=True)
+        self.noise_weight = self.add_weight(name=f"{self.name}/noise_weight", shape=[1, 1, 1, nf], initializer="zeros", trainable=True)
     
     def call(self, x):
         NHW = x.shape[0:3]

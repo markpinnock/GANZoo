@@ -79,6 +79,8 @@ Model = GAN(
 
 # trace_graph(Model.Generator, tf.zeros((1, 128)))
 # trace_graph(Model.Discriminator, tf.zeros((1, 64, 64, 3)))
+# exit()
+
 if CONFIG["EXPT"]["VERBOSE"]:
     print_model_summary(Model.Generator, CONFIG["HYPERPARAMS"]["MAX_RES"])
     print_model_summary(Model.Discriminator, CONFIG["HYPERPARAMS"]["MAX_RES"])
@@ -98,7 +100,7 @@ for i in range(1, len(CONFIG["EXPT"]["SCALES"])):
         DataLoader.data_generator,
         args=[CONFIG["EXPT"]["SCALES"][i], CONFIG["HYPERPARAMS"]["AUGMENT"]],
         output_types=tf.float32
-        ).batch(CONFIG["EXPT"]["MB_SIZE"][0] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][0])
+        ).batch(CONFIG["EXPT"]["MB_SIZE"][i] * OPT_DICT[CONFIG["HYPERPARAMS"]["MODEL"]]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][i])
 
     Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=True)
     Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)

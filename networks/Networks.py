@@ -88,11 +88,12 @@ class Generator(BaseGAN):
         self.channels.reverse()
 
         if config["MODEL"] == "StyleGAN":
-            self.mapping = MappingNet(config["LATENT_DIM"], config["LATENT_DIM"], 4, name="StyleMapping")
+            self.StyleMap = MappingNet(config["STYLE_MAP_UNITS"], config["LATENT_DIM"], config["STYLE_MAP_LAYERS"], name="StyleMapping")
+            _ = self.StyleMap(tf.zeros((2, latent_dims))) # Build implicitly until build method defined
             FirstBlock = StyleGenFirstBlock
             LaterBlock = StyleGenLaterBlock
         else:
-            self.mapping = None
+            self.StyleMap = None
             FirstBlock = ProgGenFirstBlock
             LaterBlock = ProgGenLaterBlock
 
@@ -113,7 +114,7 @@ class Generator(BaseGAN):
             assert self.blocks[i](test, fade_alpha=0.5)[1].shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=0.5).shape
 
     def call(self, z, scale, training=True):
-        if self.mapping: z = self.mapping(z)
+        if self.StyleMap: z = self.StyleMap(z)
         _, rgb = self.blocks[scale](z, fade_alpha=self.alpha)
 
         return tf.nn.tanh(rgb)
