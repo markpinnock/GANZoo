@@ -18,7 +18,7 @@ class GAN(keras.Model):
         - n_critic: number of discriminator/critic training runs (5 in WGAN, 1 otherwise) """
 
     def __init__(self, config, g_optimiser, d_optimiser, n_critic):
-        super(GAN, self).__init__()
+        super().__init__()
         self.latent_dims = config["LATENT_DIM"]
         self.GAN_type = config["MODEL"]
 
@@ -28,7 +28,8 @@ class GAN(keras.Model):
             "least_square": least_square_loss,
             "wasserstein": wasserstein_loss,
             "wasserstein-GP": wasserstein_loss,
-            "progressive": wasserstein_loss
+            "ProgGAN": wasserstein_loss,
+            "StyleGAN": wasserstein_loss
             }
 
         self.metric_dict = {
@@ -42,38 +43,30 @@ class GAN(keras.Model):
             self.d_real_label = -1.0
             self.d_fake_label = 1.0
             self.g_label = -1.0
-            cons = True
         elif self.GAN_type == "wasserstein-GP":
             self.d_real_label = -1.0
             self.d_fake_label = 1.0
             self.g_label = -1.0
-            cons = False
-        elif self.GAN_type == "progressive":
+        elif self.GAN_type == "ProgGAN":
             self.d_real_label = -1.0
             self.d_fake_label = 1.0
             self.g_label = -1.0
-            cons = "maxnorm"
+        elif self.GAN_type == "StyleGAN":
+            self.d_real_label = -1.0
+            self.d_fake_label = 1.0
+            self.g_label = -1.0
         else:
             self.d_real_label = 0.0
             self.d_fake_label = 1.0
             self.g_label = 0.0
-            cons = False
-        # TODO: IMPLEMENT CONSTRAINT TYPE
+
         self.loss = self.loss_dict[self.GAN_type]
 
-        self.Generator = Generator(
-            config=config,
-            constraint_type=cons)
-
-        self.Discriminator = Discriminator(
-            config=config,
-            constraint_type=cons)
+        self.Generator = Generator(config=config, name="Generator")
+        self.Discriminator = Discriminator(config=config, name="Discriminator")
 
         # Exponential moving average of generator weights for images
-        self.EMAGenerator = Generator(
-            config=config,
-            constraint_type=cons)
-
+        self.EMAGenerator = Generator(config=config, name="EMAGenerator")
         self.update_mvag_generator(initial=True)
 
         if config["AUGMENT"]:
@@ -124,7 +117,9 @@ class GAN(keras.Model):
             self.EMAGenerator.blocks[i].to_rgb.trainable = False
 
     def update_mvag_generator(self, initial=False):
+
         """ Updates EMAGenerator with Generator weights """
+
         # If first use, clone Generator
         if initial:
             assert len(self.Generator.weights) == len(self.EMAGenerator.weights)
@@ -156,7 +151,6 @@ class GAN(keras.Model):
         else:
             self.Discriminator.alpha = None
             self.Generator.alpha = None
-        # TODO: ADD NOISE TO LABELS AND/OR IMAGES
 
         # Critic training loop
         for idx in range(self.n_critic):
@@ -194,8 +188,6 @@ class GAN(keras.Model):
 
         # Generator training
         noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
-        
-        # TODO: ADD NOISE TO LABELS AND/OR IMAGES
 
         # Get gradients from critic predictions of generated fake images and update weights
         with tf.GradientTape() as g_tape:

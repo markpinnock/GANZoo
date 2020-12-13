@@ -2,7 +2,15 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.keras as keras
 
-from networks.Layers import ProgGANGenBlock, ProgGANDiscBlock
+from .Blocks import (
+    ProgGenFirstBlock,
+    ProgGenLaterBlock,
+    GANDiscBlock,
+    StyleGenFirstBlock,
+    StyleGenLaterBlock,
+    MappingNet
+    )
+
 from utils.TrainFuncs import WeightClipConstraint
 
 
@@ -11,16 +19,8 @@ from utils.TrainFuncs import WeightClipConstraint
 
 class BaseGAN(keras.Model):
 
-    def __init__(self, config, constraint_type):
-        super(BaseGAN, self).__init__()
-        
-        if constraint_type == "clip":
-            self.weight_const = WeightClipConstraint(0.01)
-        elif constraint_type == "maxnorm":
-            # self.weight_const = keras.constraints.MaxNorm(1)
-            self.weight_const = None
-        else:
-            self.weight_const = None
+    def __init__(self, config, name):
+        super().__init__(name=name)
 
         self.alpha = None
         self.blocks = []
@@ -44,27 +44,27 @@ class Discriminator(BaseGAN):
         Returns:
             - keras.Model """
 
-    def __init__(self, config, constraint_type):
-        super(Discriminator, self).__init__(config, constraint_type)
+    def __init__(self, config, name=None):
+        super().__init__(config, name=name)
 
         self.channels = [np.min([(config["NDF"] * 2 ** i), config["MAX_CHANNELS"]]) for i in range(self.num_layers)]
         self.channels.reverse()
-        
-        self.blocks.append(ProgGANDiscBlock(self.channels[0], None, config["MAX_RES"], config["MODEL"], self.weight_const))
+
+        self.blocks.append(GANDiscBlock(self.channels[0], None, config, name="block0"))
 
         for i in range(1, self.num_layers):
-            new_block = ProgGANDiscBlock(self.channels[i], self.blocks[i - 1], config["MAX_RES"], config["MODEL"], self.weight_const)
+            new_block = GANDiscBlock(self.channels[i], self.blocks[i - 1], config, name=f"block{i}")
             new_block.trainable = False
             self.blocks.append(new_block)
 
         # Recursive self test on start up
         for i in range(self.num_layers):
             test = tf.zeros((2, 4 * (2 ** i), 4 * (2 ** i), 3), dtype=tf.float32)
-            assert self.blocks[i](test, alpha=None).shape == (2, 1), self.blocks[i](test).shape
+            assert self.blocks[i](test, fade_alpha=None).shape == (2, 1), self.blocks[i](test).shape
         
         for i in range(self.num_layers):
             test = tf.zeros((2, 4 * (2 ** i), 4 * (2 ** i), 3), dtype=tf.float32)
-            assert self.blocks[i](test, alpha=0.5).shape == (2, 1), self.blocks[i](test, alpha=0.5).shape
+            assert self.blocks[i](test, fade_alpha=0.5).shape == (2, 1), self.blocks[i](test, alpha=0.5).shape
 
     def call(self, x, scale, training=True):
         x = self.blocks[scale](x, self.alpha)
@@ -80,31 +80,40 @@ class Generator(BaseGAN):
             - config: configuration json
             - constraint type: """
 
-    def __init__(self, config, constraint_type):
-        super(Generator, self).__init__(config, constraint_type)
+    def __init__(self, config, name=None):
+        super().__init__(config, name)
 
         latent_dims = config["LATENT_DIM"]
         self.channels = [np.min([(config["NGF"] * 2 ** i), config["MAX_CHANNELS"]]) for i in range(self.num_layers)]
         self.channels.reverse()
 
-        self.blocks.append(ProgGANGenBlock(self.channels[0], self.resolutions[0], None, config, self.weight_const))
+        if config["MODEL"] == "StyleGAN":
+            self.mapping = MappingNet(config["LATENT_DIM"], config["LATENT_DIM"], 4, name="StyleMapping")
+            FirstBlock = StyleGenFirstBlock
+            LaterBlock = StyleGenLaterBlock
+        else:
+            self.mapping = None
+            FirstBlock = ProgGenFirstBlock
+            LaterBlock = ProgGenLaterBlock
+
+        self.blocks.append(FirstBlock(self.channels[0], self.resolutions[0], config, name="block0"))
 
         for i in range(1, self.num_layers):
-            new_block = ProgGANGenBlock(self.channels[i], self.resolutions[i], self.blocks[i - 1], config, self.weight_const)
+            new_block = LaterBlock(self.channels[i], self.resolutions[i], self.blocks[i - 1], config, name=f"block{i}")
             new_block.trainable = False
             self.blocks.append(new_block)
 
         # Recursive self test on start up
         for i in range(0, self.num_layers):
             test = tf.zeros((2, latent_dims), dtype=tf.float32)
-            assert self.blocks[i](test, alpha=None)[1].shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=None).shape
+            assert self.blocks[i](test, fade_alpha=None)[1].shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=None).shape
 
         for i in range(0, self.num_layers):
             test = tf.zeros((2, latent_dims), dtype=tf.float32)
-            assert self.blocks[i](test, alpha=0.5)[1].shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=0.5).shape
+            assert self.blocks[i](test, fade_alpha=0.5)[1].shape == (2, 4 * (2 ** i), 4 * (2 ** i), 3), self.blocks[i](test, alpha=0.5).shape
 
-    def call(self, x, scale, training=True):
-        _, rgb = self.blocks[scale](x, self.alpha)
+    def call(self, z, scale, training=True):
+        if self.mapping: z = self.mapping(z)
+        _, rgb = self.blocks[scale](z, fade_alpha=self.alpha)
 
         return tf.nn.tanh(rgb)
-
