@@ -31,11 +31,8 @@ def print_model_summary(model, res):
     total_weights = 0
 
     for weight in model.layers[-1].weights:
-        if len(weight.shape) > 1: weights.append(weight.shape.as_list())
+        print(weight.name, weight.shape.as_list())
         total_weights += np.prod(weight.shape.as_list())
-
-    for idx, weight in enumerate(weights):
-        print(f"{weight} resolution {res // 2 ** idx}")
 
     print("===================================")
     print(f"Total weights: {total_weights}")
@@ -60,9 +57,7 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
         num_iter = 0
     
     Model.fade_set(num_iter)
-
-    scale_idx = int(np.log2(SCALE / 4))
-
+    scale_idx = int(np.log2(SCALE / config["SCALES"][0]))
     Model.set_trainable_layers(scale_idx)
 
     for epoch in range(EPOCHS):

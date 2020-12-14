@@ -20,6 +20,8 @@ from utils.DataLoaders import ImgLoader, DiffAug
 # TODO: data aug prob
 # TODO: Linear in place of tanh
 # TODO: truncation trick
+# TODO: blurring
+# TODO: style mixing
 
 # Handle arguments
 parser = argparse.ArgumentParser()
@@ -53,7 +55,12 @@ OPT_DICT = {
         "D_OPT": keras.optimizers.Adam(1e-4, 0.0, 0.9),
         "N_CRITIC": 5
     },
-    "progressive": {
+    "ProgGAN": {
+        "G_OPT": keras.optimizers.Adam(1e-3, 0.0, 0.99),
+        "D_OPT": keras.optimizers.Adam(1e-3, 0.0, 0.99),
+        "N_CRITIC": 1
+    },
+    "StyleGAN": {
         "G_OPT": keras.optimizers.Adam(1e-3, 0.0, 0.99),
         "D_OPT": keras.optimizers.Adam(1e-3, 0.0, 0.99),
         "N_CRITIC": 1
@@ -72,6 +79,8 @@ Model = GAN(
 
 # trace_graph(Model.Generator, tf.zeros((1, 128)))
 # trace_graph(Model.Discriminator, tf.zeros((1, 64, 64, 3)))
+# exit()
+
 if CONFIG["EXPT"]["VERBOSE"]:
     print_model_summary(Model.Generator, CONFIG["HYPERPARAMS"]["MAX_RES"])
     print_model_summary(Model.Discriminator, CONFIG["HYPERPARAMS"]["MAX_RES"])
