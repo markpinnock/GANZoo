@@ -11,7 +11,7 @@ from .Blocks import (
     MappingNet
     )
 
-from utils.TrainFuncs import WeightClipConstraint
+from utils.Losses import WeightClipConstraint
 
 
 #-------------------------------------------------------------------------

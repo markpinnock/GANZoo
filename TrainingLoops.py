@@ -63,14 +63,14 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
     for epoch in range(EPOCHS):
 
         Model.metric_dict["g_metric"].reset_states()
-        Model.metric_dict["d_metric_1"].reset_states()
-        Model.metric_dict["d_metric_2"].reset_states()
+        Model.metric_dict["d_metric"].reset_states()
+        # Model.metric_dict["d_metric_2"].reset_states()
 
         for imgs in data:
             if np.random.rand() > 0.5: imgs = imgs[:, :, ::-1, :]
             _ = Model.train_step(imgs, scale=scale_idx)
 
-        print(f"Scale {SCALE} Fade {fade} Ep {epoch + 1}, G: {Model.metric_dict['g_metric'].result():.4f}, D1: {Model.metric_dict['d_metric_1'].result():.4f}, D2: {Model.metric_dict['d_metric_2'].result():.4f}")
+        print(f"Scale {SCALE} Fade {fade} Ep {epoch + 1}, G: {Model.metric_dict['g_metric'].result():.4f}, D: {Model.metric_dict['d_metric'].result():.4f}")
 
         # Generate example images
         if (epoch + 1) % 1 == 0 and not fade:

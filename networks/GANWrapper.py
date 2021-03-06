@@ -2,8 +2,17 @@ import tensorflow as tf
 import tensorflow.keras as keras
 
 from networks.Networks import Discriminator, Generator
-from utils.TrainFuncs import least_square_loss, wasserstein_loss, gradient_penalty
 from utils.DataLoaders import DiffAug
+
+from utils.Losses import (
+    minimax_D,
+    minimax_G,
+    mod_minimax_G,
+    least_squares_D,
+    wasserstein_D,
+    wasserstein_G,
+    gradient_penalty
+)
 
 
 class GAN(keras.Model):
@@ -24,43 +33,20 @@ class GAN(keras.Model):
 
         # Choose appropriate loss and initialise metrics
         self.loss_dict = {
-            "original": keras.losses.BinaryCrossentropy(from_logits=True),
-            "least_square": least_square_loss,
-            "wasserstein": wasserstein_loss,
-            "wasserstein-GP": wasserstein_loss,
-            "ProgGAN": wasserstein_loss,
-            "StyleGAN": wasserstein_loss
+            "minimax": [minimax_D, minimax_G],
+            "mod_minimax":[minimax_D, minimax_G],
+            "least_square": [least_squares_D, least_squares_G],
+            "wasserstein": [wasserstein_D, wasserstein_G],
+            "wasserstein-GP": [wasserstein_D, wasserstein_G]
             }
 
         self.metric_dict = {
             "g_metric": keras.metrics.Mean(),
-            "d_metric_1": keras.metrics.Mean(),
-            "d_metric_2": keras.metrics.Mean()
+            "d_metric": keras.metrics.Mean()
         }
 
-        # Set up real/fake labels
-        if self.GAN_type == "wasserstein":
-            self.d_real_label = -1.0
-            self.d_fake_label = 1.0
-            self.g_label = -1.0
-        elif self.GAN_type == "wasserstein-GP":
-            self.d_real_label = -1.0
-            self.d_fake_label = 1.0
-            self.g_label = -1.0
-        elif self.GAN_type == "ProgGAN":
-            self.d_real_label = -1.0
-            self.d_fake_label = 1.0
-            self.g_label = -1.0
-        elif self.GAN_type == "StyleGAN":
-            self.d_real_label = -1.0
-            self.d_fake_label = 1.0
-            self.g_label = -1.0
-        else:
-            self.d_real_label = 0.0
-            self.d_fake_label = 1.0
-            self.g_label = 0.0
-
-        self.loss = self.loss_dict[self.GAN_type]
+        self.loss_D = self.loss_dict[config["LOSS_FN"]][0]
+        self.loss_G = self.loss_dict[config["LOSS_FN"]][1]
 
         self.Generator = Generator(config=config, name="Generator")
         self.Discriminator = Discriminator(config=config, name="Discriminator")
@@ -139,16 +125,10 @@ class GAN(keras.Model):
         # (size of real_images = minibatch size * number of critic runs)
         mb_size = real_images.shape[0] // self.n_critic
 
-        d_labels = tf.concat(
-            [tf.ones((mb_size, 1)) * self.d_fake_label,
-             tf.ones((mb_size, 1)) * self.d_real_label
-             ], axis=0)
-            
-        g_labels = tf.ones((mb_size, 1)) * self.g_label
-
         if self.fade_iter:
             self.Discriminator.alpha = self.fade_count / self.fade_iter
             self.Generator.alpha = self.fade_count / self.fade_iter
+
         else:
             self.Discriminator.alpha = None
             self.Generator.alpha = None
@@ -169,14 +149,10 @@ class GAN(keras.Model):
             with tf.GradientTape() as d_tape:
                 d_pred_fake = self.Discriminator(d_fake_images, scale, training=True)
                 d_pred_real = self.Discriminator(d_real_batch, scale, training=True)
-                d_predictions = tf.concat([d_pred_fake, d_pred_real], axis=0)
-                d_loss_1 = self.loss(d_labels[0:mb_size], d_predictions[0:mb_size]) # Fake
-                d_loss_2 = self.loss(d_labels[mb_size:], d_predictions[mb_size:]) # Real
-                d_loss_2 += 0.001 * tf.square(d_predictions[mb_size:]) # Drift term
-                d_loss = d_loss_1 + d_loss_2
+                d_loss = self.loss_D(d_pred_real, d_pred_fake)
+                d_loss += 0.001 * tf.square(d_predictions[mb_size:]) # Drift term
             
                 # Gradient penalty if indicated
-                # TODO: tidy up loss selection
                 if self.GAN_type == "wasserstein-GP" or "progressive":
                     grad_penalty = gradient_penalty(d_real_batch, d_fake_images, self.Discriminator, scale)
                     d_loss += 10 * grad_penalty
@@ -185,8 +161,7 @@ class GAN(keras.Model):
             self.d_optimiser.apply_gradients(zip(d_grads, self.Discriminator.trainable_variables))
 
             # Update metrics
-            self.metric_dict["d_metric_1"].update_state(d_loss_1)
-            self.metric_dict["d_metric_2"].update_state(d_loss_2)
+            self.metric_dict["d_metric"].update_state(d_loss)
 
         # Generator training
         noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32)
@@ -196,7 +171,7 @@ class GAN(keras.Model):
             g_fake_images = self.Generator(noise, scale, training=True)
             if self.Aug: g_fake_images = self.Aug.augment(g_fake_images)
             g_predictions = self.Discriminator(g_fake_images, scale, training=True)
-            g_loss = self.loss(g_labels, g_predictions)
+            g_loss = self.loss_G(g_predictions, tf.zeros_like(g_predictions))
         
         g_grads = g_tape.gradient(g_loss, self.Generator.trainable_variables)
         self.g_optimiser.apply_gradients(zip(g_grads, self.Generator.trainable_variables))
