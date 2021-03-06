@@ -9,6 +9,7 @@ from utils.Losses import (
     minimax_G,
     mod_minimax_G,
     least_squares_D,
+    least_squares_G,
     wasserstein_D,
     wasserstein_G,
     gradient_penalty
@@ -119,7 +120,7 @@ class GAN(keras.Model):
                 new_weights = self.EMA_beta * self.EMAGenerator.trainable_weights[idx] + (1 - self.EMA_beta) * self.Generator.trainable_weights[idx]
                 self.EMAGenerator.trainable_weights[idx].assign(new_weights)
 
-    # @tf.function
+    @tf.function
     def train_step(self, real_images, scale):
         # Determine labels and size of mb for each critic training run
         # (size of real_images = minibatch size * number of critic runs)
@@ -150,7 +151,7 @@ class GAN(keras.Model):
                 d_pred_fake = self.Discriminator(d_fake_images, scale, training=True)
                 d_pred_real = self.Discriminator(d_real_batch, scale, training=True)
                 d_loss = self.loss_D(d_pred_real, d_pred_fake)
-                d_loss += 0.001 * tf.square(d_predictions[mb_size:]) # Drift term
+                d_loss += 0.001 * tf.square(d_pred_real) # Drift term
             
                 # Gradient penalty if indicated
                 if self.GAN_type == "wasserstein-GP" or "progressive":
@@ -170,8 +171,8 @@ class GAN(keras.Model):
         with tf.GradientTape() as g_tape:
             g_fake_images = self.Generator(noise, scale, training=True)
             if self.Aug: g_fake_images = self.Aug.augment(g_fake_images)
-            g_predictions = self.Discriminator(g_fake_images, scale, training=True)
-            g_loss = self.loss_G(g_predictions, tf.zeros_like(g_predictions))
+            g_pred = self.Discriminator(g_fake_images, scale, training=True)
+            g_loss = self.loss_G(g_pred)
         
         g_grads = g_tape.gradient(g_loss, self.Generator.trainable_variables)
         self.g_optimiser.apply_gradients(zip(g_grads, self.Generator.trainable_variables))

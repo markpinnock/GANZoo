@@ -84,6 +84,8 @@ class Generator(BaseGAN):
         super().__init__(config, name)
 
         latent_dims = config["LATENT_DIM"]
+        self.output_activation = config["G_OUT"]
+        assert self.output_activation in ["tanh", "linear"], "Choose tanh or linear output"
         self.channels = [np.min([(config["NGF"] * 2 ** i), config["MAX_CHANNELS"]]) for i in range(self.num_layers)]
         self.channels.reverse()
 
@@ -117,4 +119,7 @@ class Generator(BaseGAN):
         if self.StyleMap: z = self.StyleMap(z)
         _, rgb = self.blocks[scale](z, fade_alpha=self.alpha)
 
-        return tf.nn.tanh(rgb)
+        if self.output_activation == "tanh":
+            return tf.nn.tanh(rgb)
+        else:
+            return rgb

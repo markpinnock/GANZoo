@@ -64,7 +64,6 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
 
         Model.metric_dict["g_metric"].reset_states()
         Model.metric_dict["d_metric"].reset_states()
-        # Model.metric_dict["d_metric_2"].reset_states()
 
         for imgs in data:
             if np.random.rand() > 0.5: imgs = imgs[:, :, ::-1, :]
@@ -75,8 +74,9 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
         # Generate example images
         if (epoch + 1) % 1 == 0 and not fade:
             pred = Model.EMAGenerator(latent_sample, scale=scale_idx, training=False)
+            if config["G_OUT"] == "linear": pred = np.clip(pred, -1, 1)
 
-            fig = plt.figure(figsize=(4,4))
+            fig = plt.figure(figsize=(4, 4))
 
             for i in range(pred.shape[0]):
                 plt.subplot(4, 4, i+1)
