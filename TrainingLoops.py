@@ -74,6 +74,7 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
         # Generate example images
         if (epoch + 1) % 1 == 0 and not fade:
             pred = Model.EMAGenerator(latent_sample, scale=scale_idx, training=False)
+            pred = Model.Generator(latent_sample, scale=scale_idx, training=False)
             if config["G_OUT"] == "linear": pred = np.clip(pred, -1, 1)
 
             fig = plt.figure(figsize=(4, 4))

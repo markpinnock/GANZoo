@@ -12,10 +12,7 @@ from tensorflow.python.ops import gen_math_ops, nn_ops
 class EqLrDense(keras.layers.Dense):
 
     def __init__(self, **kwargs):
-        """ Initialise Dense with the usual arguments """
-
         super().__init__(**kwargs)
-
         self.weight_scale = None
     
     def call(self, inputs, noise=None, gain=tf.sqrt(2.0), lr_mul=1.0):
@@ -40,13 +37,10 @@ class EqLrDense(keras.layers.Dense):
 class EqLrConv2D(keras.layers.Conv2D):
 
     def __init__(self, **kwargs):
-        """ Initialise with the usual arguments """
-
         super().__init__(**kwargs)
-
         self.weight_scale = None
         
-    def call(self, inputs, noise=None, gain=tf.sqrt(2.0)):
+    def call(self, inputs, gain=tf.sqrt(2.0)):
         """ Overloaded call method applies weight scale at runtime """
 
         if self.weight_scale is None: # TODO: implement in .build()
@@ -55,7 +49,6 @@ class EqLrConv2D(keras.layers.Conv2D):
 
         # Perform convolution and add bias weights (optional noise step for StyleGAN)
         outputs = self._convolution_op(inputs, self.kernel * self.weight_scale)
-        if noise: outputs = noise(outputs)
         outputs = tf.nn.bias_add(outputs, self.bias * self.weight_scale, data_format="NHWC")
 
         # Activation not needed
@@ -66,55 +59,55 @@ class EqLrConv2D(keras.layers.Conv2D):
     - interpolates between two layers by factor alpha """
 
 def fade_in(alpha, old, new):
-    return (1.0 - alpha) * old + alpha * new
-
-def mb_stddev(x, group_size=4):
-    dims = x.shape
-    group_size = tf.reduce_min([group_size, dims[0]])
-    y = tf.reshape(x, [group_size, -1, dims[1], dims[2], dims[3]])
-    y = tf.reduce_mean(tf.math.reduce_std(y, axis=0), axis=[1, 2, 3], keepdims=True)
-    y = tf.tile(y, [group_size, dims[1], dims[2], 1])
-    
-    return tf.concat([x, y], axis=-1)
+    with tf.name_scope("fade_in") as scope:
+        return (1.0 - alpha) * old + alpha * new
 
 #-------------------------------------------------------------------------
-""" Pixel normalisation from ProgGAN """
+""" Minibatch standard deviation from ProgGAN and StyleGAN """
+
+def mb_stddev(x, group_size=4):
+    with tf.name_scope("mb_stddev") as scope:
+        dims = x.shape
+        group_size = tf.reduce_min([group_size, dims[0]])
+        y = tf.reshape(x, [group_size, -1, dims[1], dims[2], dims[3]])
+        y = tf.reduce_mean(tf.math.reduce_std(y, axis=0), axis=[1, 2, 3], keepdims=True)
+        y = tf.tile(y, [group_size, dims[1], dims[2], 1])
+    
+        return tf.concat([x, y], axis=-1, name=scope)
+
+#-------------------------------------------------------------------------
+""" Pixel normalisation from ProgGAN and StyleGAN mapping network """
 
 def pixel_norm(x):
-    x_sq = tf.reduce_mean(tf.square(x), axis=-1, keepdims=True)
-    x_norm = tf.sqrt(x_sq + 1e-8)
+    with tf.name_scope("pixel_norm") as scope:
+        x_sq = tf.reduce_mean(tf.square(x, name="square"), axis=-1, keepdims=True, name="mean")
+        x_norm = tf.sqrt(x_sq + 1e-8, name="sqrt")
     
-    return x / x_norm
+        return x / x_norm
 
 #-------------------------------------------------------------------------
 """ Instance normalisation from StyleGAN """
 
 def instance_norm(x):
-    x_mu = tf.reduce_mean(x, axis=[1, 2], keepdims=True)
-    x_sig = tf.math.reduce_std(x, axis=[1, 2], keepdims=True)
-    x = (x - x_mu) / (x_sig + 1e-8)
+    with tf.name_scope("instance_norm") as scope:
+        x_mu = tf.reduce_mean(x, axis=[1, 2], keepdims=True, name="mean")
+        x_sig = tf.math.reduce_std(x, axis=[1, 2], keepdims=True)
+        x = (x - x_mu) / (x_sig + 1e-8)
 
-    return x
+        return x
 
 #-------------------------------------------------------------------------
 """ Style modulation layer from StyleGAN - maps latent W to
     affine transforms for each generator block """
 
 class StyleModulation(keras.layers.Layer):
-
-    """ nf: number of feature maps in corresponding generator block """
-
-
     def __init__(self, nf, name=None):
         super().__init__(name=name)
-
         self.nf = nf
         self.dense = EqLrDense(units=nf * 2, kernel_initializer=keras.initializers.RandomNormal(0, 1), name="dense")
     
     def call(self, x, w):
-
-        """ x: feature maps from conv stack
-            w: latent vector """
+        """ x: feature maps from conv stack, w: latent vector """
 
         w = self.dense(w, gain=1.0)
         w = tf.reshape(w, [-1, 2, 1, 1, self.nf])
@@ -134,7 +127,6 @@ class AdditiveNoise(keras.layers.Layer):
 
     def __init__(self, nf, name=None):
         super().__init__(name=name)
-
         self.nf = nf
         self.noise_weight = self.add_weight(name=f"{self.name}/noise_weight", shape=[1, 1, 1, nf], initializer="zeros", trainable=True)
     
