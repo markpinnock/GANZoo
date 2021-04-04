@@ -7,8 +7,8 @@ import sys
 import tensorflow.keras as keras
 import tensorflow as tf
 
-from TrainingLoops import training_loop, trace_graph, print_model_summary
-from networks.GANWrapper import ProStyleGAN
+from TrainingLoops import NonProgGrowTrainingLoop, ProgGrowTrainingLoop, trace_graph
+from networks.Model import DCGAN, ProGAN, StyleGAN
 from utils.DataLoaders import ImgLoader, DiffAug
 
 
@@ -31,46 +31,57 @@ arguments = parser.parse_args()
 with open(arguments.config_path, 'r') as infile:
     CONFIG = json.load(infile)
 
-LATENT_SAMPLE = tf.random.normal([CONFIG["EXPT"]["NUM_EXAMPLES"], CONFIG["HYPERPARAMS"]["LATENT_DIM"]], dtype=tf.float32)
-
 # Create optimisers and compile model
-if CONFIG["HYPERPARAMS"]["MODEL"] in ["ProGAN", "StyleGAN"]:
+if CONFIG["HYPERPARAMS"]["MODEL"] == "DCGAN":
+    Model = DCGAN(config=CONFIG["HYPERPARAMS"])
+elif CONFIG["HYPERPARAMS"]["MODEL"] in ["ProGAN", "StyleGAN"]:
     Model = ProStyleGAN(config=CONFIG["HYPERPARAMS"])
+else:
+    raise ValueError
 
 # trace_graph(Model.Generator, tf.zeros((1, 128)))
 # trace_graph(Model.Discriminator, tf.zeros((1, 64, 64, 3)))
 # exit()
 
-if CONFIG["EXPT"]["VERBOSE"]:
-    print_model_summary(Model.Generator, CONFIG["HYPERPARAMS"]["MAX_RES"])
-    print_model_summary(Model.Discriminator, CONFIG["HYPERPARAMS"]["MAX_RES"])
+if CONFIG["EXPT"]["VERBOSE"]: Model.print_summary()
 
 # Set up dataset with minibatch size multiplied by number of critic training runs
 DataLoader = ImgLoader(CONFIG["EXPT"])
 
-if CONFIG["EXPT"]["FROM_RAM"]:
-    train_ds = tf.data.Dataset.from_tensor_slices(
-        DataLoader.data_loader(res=CONFIG["EXPT"]["SCALES"][0])
-        ).batch(CONFIG["EXPT"]["MB_SIZE"][0] * CONFIG["HYPERPARAMS"]["N_CRITIC"])
-else:
-    train_ds = tf.data.Dataset.from_generator(
-        DataLoader.data_generator,
-        args=[CONFIG["EXPT"]["SCALES"][0]], output_types=tf.float32
-        ).batch(CONFIG["EXPT"]["MB_SIZE"][0] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][0])
-
-Model = training_loop(CONFIG["EXPT"], idx=0, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)
-
-for i in range(1, len(CONFIG["EXPT"]["SCALES"])):
+# If not progressive growing
+if CONFIG["HYPERPARAMS"]["MODEL"] not in ["ProGAN", "StyleGAN"]:
+    Train = NonProgGrowTrainingLoop(Model, CONFIG)
 
     if CONFIG["EXPT"]["FROM_RAM"]:
         train_ds = tf.data.Dataset.from_tensor_slices(
-            DataLoader.data_loader(res=CONFIG["EXPT"]["SCALES"][i])
-            ).batch(CONFIG["EXPT"]["MB_SIZE"][i] * CONFIG["HYPERPARAMS"]["N_CRITIC"])
+            DataLoader.data_loader(res=CONFIG["EXPT"]["SCALES"])
+            ).batch(CONFIG["EXPT"]["MB_SIZE"] * CONFIG["HYPERPARAMS"]["N_CRITIC"])
+
     else:
         train_ds = tf.data.Dataset.from_generator(
             DataLoader.data_generator,
-            args=[CONFIG["EXPT"]["SCALES"][i]], output_types=tf.float32
-            ).batch(CONFIG["EXPT"]["MB_SIZE"][i] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][i])
+            args=[CONFIG["EXPT"]["SCALES"]], output_types=tf.float32
+            ).batch(CONFIG["EXPT"]["MB_SIZE"] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"])
+    
+    Train.training_loop(train_ds)
 
-    Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=True)
-    Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)
+# If progressive growing
+else:
+    Train = ProgGrowTrainingLoop(Model, CONFIG)
+
+    for i in range(0, len(CONFIG["EXPT"]["SCALES"])):
+
+        if CONFIG["EXPT"]["FROM_RAM"]:
+            train_ds = tf.data.Dataset.from_tensor_slices(
+                DataLoader.data_loader(res=CONFIG["EXPT"]["SCALES"][i])
+                ).batch(CONFIG["EXPT"]["MB_SIZE"][i] * CONFIG["HYPERPARAMS"]["N_CRITIC"])
+        else:
+            train_ds = tf.data.Dataset.from_generator(
+                DataLoader.data_generator,
+                args=[CONFIG["EXPT"]["SCALES"][i]], output_types=tf.float32
+                ).batch(CONFIG["EXPT"]["MB_SIZE"][i] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(CONFIG["EXPT"]["MB_SIZE"][i])
+
+        if i > 0:
+            Train.training_loop(data=train_ds, idx=i, fade=True)
+
+        Train.training_loop(data=train_ds, idx=i, fade=False)
