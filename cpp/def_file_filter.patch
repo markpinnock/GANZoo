@@ -1,0 +1,40 @@
+diff --git a/tensorflow/tools/def_file_filter/def_file_filter.py.tpl b/tensorflow/tools/def_file_filter/def_file_filter.py.tpl
+index 1049939c94b..d32e8cbf88c 100644
+--- a/tensorflow/tools/def_file_filter/def_file_filter.py.tpl
++++ b/tensorflow/tools/def_file_filter/def_file_filter.py.tpl
+@@ -249,6 +249,35 @@ def main():
+       def_fp.write("LIBRARY " + args.target + "\n")
+     def_fp.write("EXPORTS\n")
+     def_fp.write("\t ??1OpDef@tensorflow@@UEAA@XZ\n")
++    def_fp.write("\t ??0Initializer@Input@tensorflow@@QEAA@AEBV?$initializer_list@UInitializer@Input@tensorflow@@@std@@@Z\n")
++    def_fp.write("\t ??0MatMul@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ??0MatMul@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1AEBUAttrs@012@@Z\n")
++    def_fp.write("\t ??0Operation@tensorflow@@QEAA@PEAVNode@1@@Z\n")
++    def_fp.write("\t ?WithOpNameImpl@Scope@tensorflow@@AEBA?AV12@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z\n")
++    def_fp.write("\t ??0ExpandDims@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ??0Placeholder@ops@tensorflow@@QEAA@AEBVScope@2@W4DataType@2@@Z\n")
++    def_fp.write("\t ??0Squeeze@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@@Z\n")
++    def_fp.write("\t ??0DecodeBmp@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@@Z\n")
++    def_fp.write("\t ??0DecodeGif@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@@Z\n")
++    def_fp.write("\t ??0DecodeJpeg@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@AEBUAttrs@012@@Z\n")
++    def_fp.write("\t ??0DecodePng@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@AEBUAttrs@012@@Z\n")
++    def_fp.write("\t ??0ResizeBilinear@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ??0ReadFile@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@@Z\n")
++    def_fp.write("\t ??0Cast@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@W4DataType@2@@Z\n")
++    def_fp.write("\t ??0Div@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ??0Max@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ??0Min@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ??0Subtract@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ??0Add@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ??0Multiply@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ?ok@Scope@tensorflow@@QEBA_NXZ\n")
++    def_fp.write("\t ?status@Scope@tensorflow@@QEBA?AVStatus@2@XZ\n")
++    def_fp.write("\t ?ToGraphDef@Scope@tensorflow@@QEBA?AVStatus@2@PEAVGraphDef@2@@Z\n")
++    def_fp.write("\t ?CreateSummaryFileWriter@tensorflow@@YA?AVStatus@1@HHAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0PEAVEnv@1@PEAPEAVSummaryWriterInterface@1@@Z\n")
++    def_fp.write("\t ??0Reshape@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ??0EncodePng@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@@Z\n")
++    def_fp.write("\t ??0ClipByValue@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@11@Z\n")
++    def_fp.write("\t ??0Stack@ops@tensorflow@@QEAA@AEBVScope@2@VInputList@2@@Z\n")
+ 
+     # Each symbols returned by undname matches the same position in candidates.
+     # We compare on undname but use the decorated name from candidates.
