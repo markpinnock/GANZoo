@@ -1,0 +1,18 @@
+diff --git a/WORKSPACE b/WORKSPACE
+index ea741c31c7f..909c027af2b 100644
+--- a/WORKSPACE
++++ b/WORKSPACE
+@@ -2,6 +2,13 @@ workspace(name = "org_tensorflow")
+ 
+ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+ 
++http_archive(
++    name = "io_bazel_rules_docker",
++    sha256 = "aed1c249d4ec8f703edddf35cbe9dfaca0b5f5ea6e4cd9e83e99f3b0d1136c3d",
++    strip_prefix = "rules_docker-0.7.0",
++    urls = ["https://github.com/bazelbuild/rules_docker/archive/v0.7.0.tar.gz"],
++)
++
+ http_archive(
+     name = "io_bazel_rules_closure",
+     sha256 = "5b00383d08dd71f28503736db0500b6fb4dda47489ff5fc6bed42557c07c6ba9",

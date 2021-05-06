@@ -1,6 +1,12 @@
 __pycache__
 .vscode
 .vs
-external
+third-party/*/include
+third-party/*/lib
 out
 CMakeSettings.json
+cpp/train/third-party/gtest/include/*
+cpp/train/third-party/gtest/lib/*
+cpp/train/third-party/protobuf/include/*
+cpp/train/third-party/protobuf/lib/*
+cpp/train/third-party/tensorflow/include/*

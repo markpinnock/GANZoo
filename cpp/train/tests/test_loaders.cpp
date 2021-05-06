@@ -1,6 +1,6 @@
 #include "../src/loaders.h"
 
-#include <gtest/gtest.h>
+#include "gtest/gtest.h"
 
 
 class ImgLoadTest : public ::testing::Test

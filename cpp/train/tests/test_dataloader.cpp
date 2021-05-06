@@ -1,6 +1,6 @@
 #include "../src/dataloader.h"
 
-#include <gtest/gtest.h>
+#include "gtest/gtest.h"
 
 
 //class DataloaderTest : public ::testing::Test
@@ -17,15 +17,21 @@
 
 TEST(DataloaderInit, LoadFileNames)
 {
+	// Get list of images in test folder
 	std::string file_path{ "./data/" };
 	tf::Env* env = tf::Env::Default();
 	std::vector<std::string> file_names;
-	ASSERT_TRUE(env->GetChildren(file_path, &file_names));
+	ASSERT_TRUE(env->GetChildren(file_path, &file_names).ok());
 
-	Dataloader d(8);
+	for (auto& el : file_names)
+	{
+		el = file_path + el;
+	}
 
+	// Load filenames using Dataloader and test
+	Dataloader d(4);
 	tf::Status s = d.loadFilenames(file_path);
-	ASSERT_TRUE(s);
+	ASSERT_TRUE(s.ok());
 	ASSERT_EQ(file_names.size(), d.getFilenames().size());
 
 	for (int i{ 0 }; i < file_names.size(); ++i)

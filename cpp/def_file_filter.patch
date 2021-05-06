@@ -1,8 +1,8 @@
 diff --git a/tensorflow/tools/def_file_filter/def_file_filter.py.tpl b/tensorflow/tools/def_file_filter/def_file_filter.py.tpl
-index 1049939c94b..d32e8cbf88c 100644
+index 1049939c94b..8b2fcff33b7 100644
 --- a/tensorflow/tools/def_file_filter/def_file_filter.py.tpl
 +++ b/tensorflow/tools/def_file_filter/def_file_filter.py.tpl
-@@ -249,6 +249,35 @@ def main():
+@@ -249,6 +249,46 @@ def main():
        def_fp.write("LIBRARY " + args.target + "\n")
      def_fp.write("EXPORTS\n")
      def_fp.write("\t ??1OpDef@tensorflow@@UEAA@XZ\n")
@@ -35,6 +35,17 @@ index 1049939c94b..d32e8cbf88c 100644
 +    def_fp.write("\t ??0EncodePng@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@@Z\n")
 +    def_fp.write("\t ??0ClipByValue@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@11@Z\n")
 +    def_fp.write("\t ??0Stack@ops@tensorflow@@QEAA@AEBVScope@2@VInputList@2@@Z\n")
++    def_fp.write("\t ??1Scope@tensorflow@@QEAA@XZ\n")
++    def_fp.write("\t ?NewRootScope@Scope@tensorflow@@SA?AV12@XZ\n")
++    def_fp.write("\t ??0ClientSession@tensorflow@@QEAA@AEBVScope@1@@Z\n")
++    def_fp.write("\t ?Const@ops@tensorflow@@YA?AVOutput@2@AEBVScope@2@AEBUInitializer@Input@2@@Z\n")
++    def_fp.write("\t ??1Scope@tensorflow@@QEAA@XZ\n")
++    def_fp.write("\t ?NewRootScope@Scope@tensorflow@@SA?AV12@XZ\n")
++    def_fp.write("\t ??0ClientSession@tensorflow@@QEAA@AEBVScope@1@@Z\n")
++    def_fp.write("\t ??1ClientSession@tensorflow@@QEAA@XZ\n")
++    def_fp.write("\t ?Const@ops@tensorflow@@YA?AVOutput@2@AEBVScope@2@AEBUInitializer@Input@2@@Z\n")
++    def_fp.write("\t ?Run@ClientSession@tensorflow@@QEBA?AVStatus@2@AEBV?$vector@VOutput@tensorflow@@V?$allocator@VOutput@tensorflow@@@std@@@std@@PEAV?$vector@VTensor@tensorflow@@V?$allocator@VTensor@tensorflow@@@std@@@5@@Z\n")
++    def_fp.write("\t ?Run@ClientSession@tensorflow@@QEBA?AVStatus@2@AEBV?$unordered_map@VOutput@tensorflow@@UInitializer@Input@2@UOutputHash@2@U?$equal_to@VOutput@tensorflow@@@std@@V?$allocator@U?$pair@$$CBVOutput@tensorflow@@UInitializer@Input@2@@std@@@7@@std@@AEBV?$vector@VOutput@tensorflow@@V?$allocator@VOutput@tensorflow@@@std@@@5@PEAV?$vector@VTensor@tensorflow@@V?$allocator@VTensor@tensorflow@@@std@@@5@@Z\n")
  
      # Each symbols returned by undname matches the same position in candidates.
      # We compare on undname but use the decorated name from candidates.

@@ -20,6 +20,7 @@ namespace ops = tf::ops;
 using tf::Output;
 using tf::Tensor;
 
+
 //------------------------------------------------------------------------
 
 class Dataloader
@@ -30,16 +31,15 @@ private:
 
 	int m_mb_size;
 	int m_mb_idx{ 0 };
-	int m_num_mb;
-	int m_num_images;
+	int m_num_mb{ 0 };
+	int m_num_images{ 0 };
 	int m_in_ch{ 3 };
 	int m_resolution{ 64 };
 
-	Output m_file_name_ph;
+	Output m_file_name_ph; // Placeholder for name of image to be loaded
 	Output m_normalised_img;
 
-	// Image loader graph
-	tf::Scope m_image_root;
+	tf::Scope m_image_root; // Image loader graph
 	//tf::ClientSession m_image_sess;
 
 public:

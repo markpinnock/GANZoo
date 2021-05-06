@@ -30,7 +30,14 @@ tf::Status Dataloader::loadFilenames(std::string path)
 		m_num_mb = static_cast<int>(m_num_images / m_mb_size);
 	}
 
-	return tf::Status::OK();
+	if (!m_num_images || !m_num_mb)
+	{
+		return tf::errors::Cancelled("Number of images: ", m_num_images, ", number of minibatches: ", m_num_mb);
+	}
+	else
+	{
+		return tf::Status::OK();
+	}
 }
 
 
@@ -78,9 +85,6 @@ tf::Status Dataloader::createImageGraph(const int height, const int width)
 	m_normalised_img = ops::Sub(
 		m_image_root.WithOpName("sub"), mul, 1.0f);
 
-	// Create session for loading images
-	//m_image_sess(m_image_root);
-
 	return m_image_root.status();
 }
 
@@ -92,16 +96,18 @@ tf::Status Dataloader::getMinibatch(std::vector<Tensor>& image_minibatch)
 	std::vector<Tensor> image_tensor;
 	std::vector<tf::Input> images_to_stack;
 
-	//TODO: seed
+	// TODO: seed
+	// TODO: fit all in memory boolean
 	if (!m_mb_idx) { std::random_shuffle(m_img_names.begin(), m_img_names.end()); }
 
 	auto it_begin = m_img_names.begin() + (m_mb_size * m_mb_idx);
 	auto it_end = m_img_names.begin() + (m_mb_size * (m_mb_idx + 1));
 	if (it_end > m_img_names.end()) { it_end = m_img_names.end(); }
 
+	// TODO: is this the most efficient way?
 	tf::ClientSession image_sess(m_image_root);
 
-	/* Before running session, check for errors - otherwise can be hard to diagnose */
+	/* Before running session, check for errors in graph - otherwise can be hard to diagnose */
 	if (!m_image_root.ok()) LOG(FATAL) << m_image_root.status().ToString();
 
 	for (auto it = it_begin; it < it_end; ++it)
@@ -111,6 +117,7 @@ tf::Status Dataloader::getMinibatch(std::vector<Tensor>& image_minibatch)
 				{ {m_file_name_ph, *it} },
 				{ m_normalised_img },
 				&image_tensor));
+
 		images_to_stack.push_back(tf::Input(image_tensor[0]));
 	}
 
@@ -118,11 +125,14 @@ tf::Status Dataloader::getMinibatch(std::vector<Tensor>& image_minibatch)
 	tf::InputList images_to_stack_list(images_to_stack);
 
 	// TODO: Is this efficient?
-	tf::Scope root = tf::Scope::NewRootScope();
+	tf::Scope root{ tf::Scope::NewRootScope() };
 	TF_CHECK_OK(root.status());
 	Output stacked_images = ops::Stack(root, images_to_stack_list);
+
+	// TODO: why does this need squeezing
+	Output squeezed_images = ops::Squeeze(root, stacked_images);
 	tf::ClientSession session(root);
-	TF_CHECK_OK(session.Run({ stacked_images }, &image_minibatch));
+	TF_CHECK_OK(session.Run({ squeezed_images }, &image_minibatch));
 
 	m_mb_idx += 1;
 	return tf::Status::OK();
