@@ -5,7 +5,7 @@
 
 int main(int argc, char** argv)
 {
-	Dataloader d(8);
+	Dataloader d(10);
 	TF_CHECK_OK(d.loadFilenames("../../../../tests/data/"));
 	TF_CHECK_OK(d.createImageGraph(64, 64));
 	std::vector<std::string> a = d.getFilenames();
@@ -16,8 +16,15 @@ int main(int argc, char** argv)
 	}
 	
 	std::vector<Tensor> t;
-	d.getMinibatch(t);
-	std::cout << t.size() << " " << t[0].shape().DebugString() << std::endl;
+
+	for (int i{ 0 }; i < d.getNumMinibatches(); ++i)
+	{
+		TF_CHECK_OK(d.getMinibatch(t));
+		std::cout << t.size() << " " << t[0].shape().DebugString() << " " << t[0].shape().dim_size(0) << std::endl;
+	}
+
+	TF_CHECK_OK(d.getMinibatch(t));
+	std::cout << t.size() << " " << t[0].shape().DebugString() << " " << t[0].shape().dim_size(0) << std::endl;
 
 	return EXIT_SUCCESS;
 }

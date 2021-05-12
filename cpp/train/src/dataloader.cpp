@@ -7,7 +7,13 @@ tf::Status Dataloader::loadFilenames(std::string path)
 {
 	m_file_path = path;
 
-	// Env provides interface with file system
+	// tf::errors::Cancelled is another way of saying tf::Status(tf::error::CANCELLED, strings::StrCat(...))
+	if (m_mb_size <= 0)
+	{
+		return tf::errors::Cancelled("Minibatch size: ", m_mb_size);
+	}
+
+	// Env provides interface with file system, while TF_RETURN_ERROR catches error and returns
 	tf::Env* env = tf::Env::Default();
 	TF_RETURN_IF_ERROR(env->IsDirectory(m_file_path));
 
@@ -54,6 +60,11 @@ tf::Status Dataloader::createImageGraph(const int height, const int width)
 
 	constexpr int channels{ 3 };
 
+	if (!height || !width)
+	{
+		return tf::errors::Cancelled("Invalid image size: ", height, ", " , width);
+	}
+
 	// Set up placeholder and first op
 	m_file_name_ph = ops::Placeholder(m_image_root.WithOpName("input"), tf::DT_STRING);
 	Output file_reader = ops::ReadFile(m_image_root.WithOpName("file_reader"), m_file_name_ph);
@@ -96,19 +107,35 @@ tf::Status Dataloader::getMinibatch(std::vector<Tensor>& image_minibatch)
 	std::vector<Tensor> image_tensor;
 	std::vector<tf::Input> images_to_stack;
 
+	// Reset idx if end of epoch
+	if (m_mb_idx == m_num_mb)
+	{
+		m_mb_idx = 0;
+	}
+
 	// TODO: seed
 	// TODO: fit all in memory boolean
-	if (!m_mb_idx) { std::random_shuffle(m_img_names.begin(), m_img_names.end()); }
+	if (!m_mb_idx)
+	{
+		std::random_shuffle(m_img_names.begin(), m_img_names.end());
+	}
 
 	auto it_begin = m_img_names.begin() + (m_mb_size * m_mb_idx);
 	auto it_end = m_img_names.begin() + (m_mb_size * (m_mb_idx + 1));
-	if (it_end > m_img_names.end()) { it_end = m_img_names.end(); }
+
+	if (it_end > m_img_names.end())
+	{
+		it_end = m_img_names.end();
+	}
 
 	// TODO: is this the most efficient way?
 	tf::ClientSession image_sess(m_image_root);
 
 	/* Before running session, check for errors in graph - otherwise can be hard to diagnose */
-	if (!m_image_root.ok()) LOG(FATAL) << m_image_root.status().ToString();
+	if (!m_image_root.ok())
+	{
+		LOG(FATAL) << m_image_root.status().ToString();
+	}
 
 	for (auto it = it_begin; it < it_end; ++it)
 	{

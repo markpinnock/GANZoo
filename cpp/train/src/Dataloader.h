@@ -52,6 +52,7 @@ public:
 	/* */
 	tf::Status loadFilenames(std::string);
 	std::vector<std::string> getFilenames() const { return m_img_names; }
+	int getNumMinibatches() const { return m_num_mb; }
 
 	// Methods for manipulating the image loading graphs
 	tf::Status createImageGraph(const int, const int);
