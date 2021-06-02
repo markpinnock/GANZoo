@@ -1,8 +1,8 @@
 diff --git a/tensorflow/tools/def_file_filter/def_file_filter.py.tpl b/tensorflow/tools/def_file_filter/def_file_filter.py.tpl
-index 1049939c94b..e4aba4bc615 100644
+index 1049939c94b..8c232385631 100644
 --- a/tensorflow/tools/def_file_filter/def_file_filter.py.tpl
 +++ b/tensorflow/tools/def_file_filter/def_file_filter.py.tpl
-@@ -249,6 +249,43 @@ def main():
+@@ -249,6 +249,51 @@ def main():
        def_fp.write("LIBRARY " + args.target + "\n")
      def_fp.write("EXPORTS\n")
      def_fp.write("\t ??1OpDef@tensorflow@@UEAA@XZ\n")
@@ -43,6 +43,14 @@ index 1049939c94b..e4aba4bc615 100644
 +    def_fp.write("\t ?Run@ClientSession@tensorflow@@QEBA?AVStatus@2@AEBV?$vector@VOutput@tensorflow@@V?$allocator@VOutput@tensorflow@@@std@@@std@@PEAV?$vector@VTensor@tensorflow@@V?$allocator@VTensor@tensorflow@@@std@@@5@@Z\n")
 +    def_fp.write("\t ?Run@ClientSession@tensorflow@@QEBA?AVStatus@2@AEBV?$unordered_map@VOutput@tensorflow@@UInitializer@Input@2@UOutputHash@2@U?$equal_to@VOutput@tensorflow@@@std@@V?$allocator@U?$pair@$$CBVOutput@tensorflow@@UInitializer@Input@2@@std@@@7@@std@@AEBV?$vector@VOutput@tensorflow@@V?$allocator@VOutput@tensorflow@@@std@@@5@PEAV?$vector@VTensor@tensorflow@@V?$allocator@VTensor@tensorflow@@@std@@@5@@Z\n")
 +    def_fp.write("\t ??0Scope@tensorflow@@QEAA@AEBV01@@Z\n")
++    def_fp.write("\t ?NewSubScope@Scope@tensorflow@@QEBA?AV12@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z\n")
++    def_fp.write("\t ??0BiasAdd@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ??0Conv2D@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1AEBV?$Span@$$CBH@lts_2020_02_25@absl@@Vstring_view@67@@Z\n")
++    def_fp.write("\t ??0MaxPool@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@AEBV?$Span@$$CBH@lts_2020_02_25@absl@@2Vstring_view@67@@Z\n")
++    def_fp.write("\t ??0Relu@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@@Z\n")
++    def_fp.write("\t ??0Assign@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ??0Variable@ops@tensorflow@@QEAA@AEBVScope@2@VPartialTensorShape@2@W4DataType@2@@Z\n")
++    def_fp.write("\t ??0RandomNormal@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@W4DataType@2@@Z\n")
  
      # Each symbols returned by undname matches the same position in candidates.
      # We compare on undname but use the decorated name from candidates.

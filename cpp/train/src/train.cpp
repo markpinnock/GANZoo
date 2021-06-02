@@ -8,13 +8,7 @@ int main(int argc, char** argv)
 	Dataloader d(10);
 	TF_CHECK_OK(d.loadFilenames("../../../../tests/data/"));
 	TF_CHECK_OK(d.createImageGraph(64, 64));
-	std::vector<std::string> a = d.getFilenames();
 
-	for (auto el : a)
-	{
-		std::cout << el << std::endl;
-	}
-	
 	std::vector<Tensor> t;
 
 	for (int i{ 0 }; i < d.getNumMinibatches(); ++i)

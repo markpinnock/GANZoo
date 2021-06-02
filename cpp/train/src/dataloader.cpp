@@ -67,31 +67,31 @@ tf::Status Dataloader::createImageGraph(const int height, const int width)
 
 	// Set up placeholder and first op
 	m_file_name_ph = ops::Placeholder(m_image_root.WithOpName("input"), tf::DT_STRING);
-	Output file_reader = ops::ReadFile(m_image_root.WithOpName("file_reader"), m_file_name_ph);
+	tf::Output file_reader = ops::ReadFile(m_image_root.WithOpName("file_reader"), m_file_name_ph);
 
 	// Ops take the graph scope as arguments along with input
-	Output image_reader = ops::DecodeJpeg(
+	tf::Output image_reader = ops::DecodeJpeg(
 		m_image_root.WithOpName("img_reader"),  // Scope
 		file_reader,							// Input
 		ops::DecodeJpeg::Channels(channels));	// Struct of additional options
 
 	// Cast image to DT_FLOAT, expand dims from HWC to NHWC and resize
-	Output float_cast = ops::Cast(m_image_root.WithOpName("float_cast"), image_reader, tf::DT_FLOAT);
-	Output expand_dims = ops::ExpandDims(m_image_root, float_cast, 0);
-	Output img_size = ops::Const(m_image_root.WithOpName("size"), { height, width });
-	Output resize = ops::ResizeBilinear(m_image_root, expand_dims, img_size);
+	tf::Output float_cast = ops::Cast(m_image_root.WithOpName("float_cast"), image_reader, tf::DT_FLOAT);
+	tf::Output expand_dims = ops::ExpandDims(m_image_root, float_cast, 0);
+	tf::Output img_size = ops::Const(m_image_root.WithOpName("size"), { height, width });
+	tf::Output resize = ops::ResizeBilinear(m_image_root, expand_dims, img_size);
 
 	// Normalise to range [-1, 1]
-	Output reduce_dims = ops::Const(m_image_root.WithOpName("dims"), { 1, 2, 3 });
-	Output min = ops::Min(m_image_root, resize, reduce_dims);
-	Output max = ops::Max(m_image_root, resize, reduce_dims);
+	tf::Output reduce_dims = ops::Const(m_image_root.WithOpName("dims"), { 1, 2, 3 });
+	tf::Output min = ops::Min(m_image_root, resize, reduce_dims);
+	tf::Output max = ops::Max(m_image_root, resize, reduce_dims);
 
-	Output numerator = ops::Sub(m_image_root.WithOpName("numerator"), resize, min);
-	Output denominator = ops::Sub(m_image_root.WithOpName("denominator"), max, min);
+	tf::Output numerator = ops::Sub(m_image_root.WithOpName("numerator"), resize, min);
+	tf::Output denominator = ops::Sub(m_image_root.WithOpName("denominator"), max, min);
 
-	Output div = ops::Div(
+	tf::Output div = ops::Div(
 		m_image_root.WithOpName("div"), numerator, denominator);
-	Output mul = ops::Multiply(
+	tf::Output mul = ops::Multiply(
 		m_image_root.WithOpName("mul"), div, 2.0f);
 	m_normalised_img = ops::Sub(
 		m_image_root.WithOpName("sub"), mul, 1.0f);
@@ -102,7 +102,7 @@ tf::Status Dataloader::createImageGraph(const int height, const int width)
 //------------------------------------------------------------------------
 
 
-tf::Status Dataloader::getMinibatch(std::vector<Tensor>& image_minibatch)
+tf::Status Dataloader::getMinibatch(std::vector<tf::Tensor>& image_minibatch)
 {
 	std::vector<Tensor> image_tensor;
 	std::vector<tf::Input> images_to_stack;
@@ -154,10 +154,10 @@ tf::Status Dataloader::getMinibatch(std::vector<Tensor>& image_minibatch)
 	// TODO: Is this efficient?
 	tf::Scope root{ tf::Scope::NewRootScope() };
 	TF_CHECK_OK(root.status());
-	Output stacked_images = ops::Stack(root, images_to_stack_list);
+	tf::Output stacked_images = ops::Stack(root, images_to_stack_list);
 
 	// TODO: why does this need squeezing
-	Output squeezed_images = ops::Squeeze(root, stacked_images);
+	tf::Output squeezed_images = ops::Squeeze(root, stacked_images);
 	tf::ClientSession session(root);
 	TF_CHECK_OK(session.Run({ squeezed_images }, &image_minibatch));
 
