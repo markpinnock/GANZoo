@@ -3,7 +3,7 @@
 # Add source to this project's executable
 add_executable (train "train.cpp")
 add_library (json "json.cpp")
-add_library (utils "dataloader.cpp" "DCGAN.cpp" "blocks.cpp")
+add_library (utils "dataloader.cpp" "DCGAN.cpp" "utils.cpp" "loaders.cpp")
 
 # Add libraries
 find_library (TF NAMES tensorflow_cc PATHS "${TF_LIB_DIR}/src")

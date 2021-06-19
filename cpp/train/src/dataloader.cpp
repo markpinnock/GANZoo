@@ -96,6 +96,7 @@ tf::Status Dataloader::createImageGraph(const int height, const int width)
 	m_normalised_img = ops::Sub(
 		m_image_root.WithOpName("sub"), mul, 1.0f);
 
+	m_image_sess = std::make_unique<tf::ClientSession>(m_image_root);
 	return m_image_root.status();
 }
 
@@ -104,7 +105,7 @@ tf::Status Dataloader::createImageGraph(const int height, const int width)
 
 tf::Status Dataloader::getMinibatch(std::vector<tf::Tensor>& image_minibatch)
 {
-	std::vector<Tensor> image_tensor;
+	std::vector<tf::Tensor> image_tensor;
 	std::vector<tf::Input> images_to_stack;
 
 	// Reset idx if end of epoch
@@ -129,7 +130,6 @@ tf::Status Dataloader::getMinibatch(std::vector<tf::Tensor>& image_minibatch)
 	}
 
 	// TODO: is this the most efficient way?
-	tf::ClientSession image_sess(m_image_root);
 
 	/* Before running session, check for errors in graph - otherwise can be hard to diagnose */
 	if (!m_image_root.ok())
@@ -140,7 +140,7 @@ tf::Status Dataloader::getMinibatch(std::vector<tf::Tensor>& image_minibatch)
 	for (auto it = it_begin; it < it_end; ++it)
 	{
 		TF_CHECK_OK(
-			image_sess.Run(
+			m_image_sess->Run(
 				{ {m_file_name_ph, *it} },
 				{ m_normalised_img },
 				&image_tensor));
@@ -157,6 +157,7 @@ tf::Status Dataloader::getMinibatch(std::vector<tf::Tensor>& image_minibatch)
 	tf::Output stacked_images = ops::Stack(root, images_to_stack_list);
 
 	// TODO: why does this need squeezing
+	// TODO: ensure minibatch size 1 not squeezed
 	tf::Output squeezed_images = ops::Squeeze(root, stacked_images);
 	tf::ClientSession session(root);
 	TF_CHECK_OK(session.Run({ squeezed_images }, &image_minibatch));

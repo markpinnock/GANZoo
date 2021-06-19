@@ -38,7 +38,7 @@ private:
 	tf::Output m_normalised_img; // Output node from image load graph
 
 	tf::Scope m_image_root; // Image loader graph
-	//tf::ClientSession m_image_sess;
+	std::unique_ptr<tf::ClientSession> m_image_sess;
 
 public:
 	Dataloader(int mb_size) :

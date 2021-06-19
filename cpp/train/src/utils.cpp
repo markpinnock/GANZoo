@@ -42,14 +42,16 @@ tf::Output losses::leastSquaresDiscriminator(tf::Scope& scope, tf::Output& real,
 {
 	tf::Output real_loss = ops::Subtract(scope, real, 1.0f);
 	real_loss = ops::Square(scope.WithOpName("real_square"), real_loss);
-	real_loss = ops::ReduceMean(scope.WithOpName("real_mean"), real_loss);
+	real_loss = ops::Mean(scope.WithOpName("real_mean"), real_loss, 0);
 	real_loss = ops::Multiply(scope.WithOpName("real_mult"), real_loss, 0.5f);
 
 	tf::Output fake_loss = ops::Square(scope.WithOpName("fake_square"), fake);
-	fake_loss = ops::ReduceMean(scope.WithOpName("fake_mean"), fake_loss);
+	fake_loss = ops::Mean(scope.WithOpName("fake_mean"), fake_loss, 0);
 	fake_loss = ops::Multiply(scope.WithOpName("fake_mult"), fake_loss, 0.5f);
 
-	return ops::Add(scope, real_loss, fake_loss);
+	tf::Output combined_loss = ops::Add(scope, real_loss, fake_loss);
+
+	return ops::Squeeze(scope.WithOpName("squeeze_out"), combined_loss);
 }
 
 
@@ -59,8 +61,8 @@ tf::Output losses::leastSquaresGenerator(tf::Scope& scope, tf::Output& fake)
 {
 	tf::Output fake_loss = ops::Subtract(scope, fake, 1.0f);
 	fake_loss = ops::Square(scope, fake_loss);
-	fake_loss = ops::ReduceMean(scope, fake_loss);
+	fake_loss = ops::Mean(scope, fake_loss, 0);
 	fake_loss = ops::Multiply(scope, fake_loss, 0.5f);
 
-	return fake_loss;
+	return ops::Squeeze(scope.WithOpName("squeeze_out"), fake_loss);
 }

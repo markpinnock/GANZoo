@@ -1,8 +1,8 @@
 diff --git a/tensorflow/tools/def_file_filter/def_file_filter.py.tpl b/tensorflow/tools/def_file_filter/def_file_filter.py.tpl
-index 1049939c94b..8c232385631 100644
+index 1049939c94b..e8bab40fa50 100644
 --- a/tensorflow/tools/def_file_filter/def_file_filter.py.tpl
 +++ b/tensorflow/tools/def_file_filter/def_file_filter.py.tpl
-@@ -249,6 +249,51 @@ def main():
+@@ -249,6 +249,56 @@ def main():
        def_fp.write("LIBRARY " + args.target + "\n")
      def_fp.write("EXPORTS\n")
      def_fp.write("\t ??1OpDef@tensorflow@@UEAA@XZ\n")
@@ -51,6 +51,11 @@ index 1049939c94b..8c232385631 100644
 +    def_fp.write("\t ??0Assign@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
 +    def_fp.write("\t ??0Variable@ops@tensorflow@@QEAA@AEBVScope@2@VPartialTensorShape@2@W4DataType@2@@Z\n")
 +    def_fp.write("\t ??0RandomNormal@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@W4DataType@2@@Z\n")
++    def_fp.write("\t ?Run@ClientSession@tensorflow@@QEBA?AVStatus@2@AEBV?$unordered_map@VOutput@tensorflow@@UInitializer@Input@2@UOutputHash@2@U?$equal_to@VOutput@tensorflow@@@std@@V?$allocator@U?$pair@$$CBVOutput@tensorflow@@UInitializer@Input@2@@std@@@7@@std@@AEBV?$vector@VOutput@tensorflow@@V?$allocator@VOutput@tensorflow@@@std@@@5@AEBV?$vector@VOperation@tensorflow@@V?$allocator@VOperation@tensorflow@@@std@@@5@PEAV?$vector@VTensor@tensorflow@@V?$allocator@VTensor@tensorflow@@@std@@@5@@Z\n")
++    def_fp.write("\t ??0ApplyAdam@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@111111111@Z\n")
++    def_fp.write("\t ?AddSymbolicGradients@tensorflow@@YA?AVStatus@1@AEBVScope@1@AEBV?$vector@VOutput@tensorflow@@V?$allocator@VOutput@tensorflow@@@std@@@std@@1PEAV45@@Z\n")
++    def_fp.write("\t ??0Mean@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@1@Z\n")
++    def_fp.write("\t ??0Square@ops@tensorflow@@QEAA@AEBVScope@2@VInput@2@@Z\n")
  
      # Each symbols returned by undname matches the same position in candidates.
      # We compare on undname but use the decorated name from candidates.

@@ -178,7 +178,7 @@ tf::Status utils::WriteImage(
 	// Un-normalise [-1, 1] image - output will be [0, 255]
 	// We clip to [-1, 1] as the linear activation may produce pixel intensities outisde this range
 	Output clip = ops::ClipByValue(
-		root.WithOpName("clip"), in_tensors[0], -1.0f, 1.0f);
+		root.WithOpName("clip"), in_tensors[0].Slice(0, 1), -1.0f, 1.0f);
 	Output add = ops::Add(
 		root.WithOpName("add"), clip, { 1.0f });
 	Output div = ops::Div(
@@ -190,7 +190,7 @@ tf::Status utils::WriteImage(
 
 	// Convert tensor to image
 	Output reshape = ops::Reshape(
-		root.WithOpName("reshape"), cast, ops::Const(root, { 256, 256, 3 }));
+		root.WithOpName("reshape"), cast, ops::Const(root, { 32, 32, 3 }));
 	Output image = ops::EncodePng(root.WithOpName("png_writer"), reshape);
 
 	/* Before running session, check for errors - otherwise can be hard to diagnose */

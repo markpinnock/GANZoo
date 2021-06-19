@@ -13,15 +13,15 @@ protected:
 		// Vector of dataloaders to test different minibatch sizes
 		for (auto mb : mb_vec)
 		{
-			Dataloader d(mb);
-			d.createImageGraph(64, 64).ok();
+			std::unique_ptr<Dataloader> d = std::make_unique<Dataloader>(mb);
+			d->createImageGraph(64, 64).ok();
 
-			if (!d.loadFilenames(file_path).ok())
+			if (!d->loadFilenames(file_path).ok())
 			{
 				return false;
 			}
 
-			dataloader_vec.push_back(d);
+			dataloader_vec.push_back(std::move(d));
 		}
 
 		return true;
@@ -38,7 +38,7 @@ protected:
 	std::string file_path{ "./data/" };
 	std::unique_ptr<Dataloader> dataloader;
 	std::vector<int> mb_vec{ 4, 8, 16, 32 }; // NB: assumes test folder of 16 images
-	std::vector<Dataloader> dataloader_vec;
+	std::vector<std::unique_ptr<Dataloader>> dataloader_vec;
 };
 
 
@@ -105,7 +105,7 @@ TEST_F(DataloaderGraphTest, CheckMbSize)
 {
 	// Assumes test folder of 16 images
 	const int max_mb{ static_cast<int>(dataloader->getFilenames().size()) };
-	std::vector<Tensor> test_minibatch;
+	std::vector<tf::Tensor> test_minibatch;
 	TF_CHECK_OK(dataloader->createImageGraph(64, 64));
 
 	// Test that minibatch index resets at end of epoch
@@ -123,7 +123,7 @@ TEST_F(DataloaderGraphTest, CheckMbSize)
 	// Test correct minibatch sizes
 	for (int i{ 0 }; i < mb_vec.size(); ++i)
 	{
-		TF_CHECK_OK(dataloader_vec[i].getMinibatch(test_minibatch));
+		TF_CHECK_OK(dataloader_vec[i]->getMinibatch(test_minibatch));
 
 		if (mb_vec[i] < max_mb)
 		{
