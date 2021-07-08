@@ -169,9 +169,8 @@ tf::Output DCGAN::createGenerator(
 
 
 //------------------------------------------------------------------------
-tf::Status DCGAN::discriminatorTrainingGraph(const std::vector<int>& channels)
+tf::Status DCGAN::discriminatorTrainingGraph(int channels)
 {
-	// TODO: make std::vector of channels a single integer as the initial channel?
 	const int num_layers{ static_cast<int>(std::log2(m_resolution)) - 1 };
 
 	if (m_resolution < 4)
@@ -179,27 +178,33 @@ tf::Status DCGAN::discriminatorTrainingGraph(const std::vector<int>& channels)
 		return tf::errors::Cancelled("Invalid resolution: ", m_resolution);
 	}
 
-	if (num_layers != channels.size() + 1)
+	std::vector<int> d_channel_vec;
+
+	for (int i{ 0 }; i < num_layers - 1; ++i)
 	{
-		return tf::errors::Cancelled("Number of layers != number of channels: ", num_layers, " ", channels.size());
+		d_channel_vec.push_back(channels);
+		channels *= 2;
 	}
 
+	std::vector<int> g_channel_vec(d_channel_vec);
+	std::reverse(g_channel_vec.begin(), g_channel_vec.end());
+	
 	// Fake images
 	tf::Scope generator_scope = m_discriminator_root.NewSubScope("generator");
 	m_d_latent_ph = ops::Placeholder(generator_scope.WithOpName("noise_input"), tf::DT_FLOAT);
-	m_d_fake_images = createGenerator(channels, num_layers, generator_scope, tf::Input(m_d_latent_ph));
-	m_d_fake_score = createDiscriminator(channels, num_layers, m_discriminator_root.NewSubScope("fake_disc"), tf::Input(m_d_fake_images));
+	m_d_fake_images = createGenerator(g_channel_vec, num_layers, generator_scope, tf::Input(m_d_latent_ph));
+	m_d_fake_score = createDiscriminator(d_channel_vec, num_layers, m_discriminator_root.NewSubScope("fake_disc"), tf::Input(m_d_fake_images));
 
 	// Real images
 	m_d_real_ph = ops::Placeholder(m_discriminator_root.WithOpName("real_input"), tf::DT_FLOAT);
-	m_d_real_score= createDiscriminator(channels, num_layers, m_discriminator_root.NewSubScope("real_disc"), tf::Input(m_d_real_ph));
+	m_d_real_score= createDiscriminator(d_channel_vec, num_layers, m_discriminator_root.NewSubScope("real_disc"), tf::Input(m_d_real_ph));
 
 	return m_discriminator_root.status();
 }
 
 
 //------------------------------------------------------------------------
-tf::Status DCGAN::generatorTrainingGraph(const std::vector<int>& channels)
+tf::Status DCGAN::generatorTrainingGraph(int channels)
 {
 	if (m_latent_dims <= 0)
 	{
@@ -213,15 +218,21 @@ tf::Status DCGAN::generatorTrainingGraph(const std::vector<int>& channels)
 		return tf::errors::Cancelled("Invalid resolution: ", m_resolution);
 	}
 
-	if (num_layers != channels.size() + 1)
+	std::vector<int> d_channel_vec;
+
+	for (int i{ 0 }; i < num_layers - 1; ++i)
 	{
-		return tf::errors::Cancelled("Number of layers != number of channels: ", num_layers, " ", channels.size());
+		d_channel_vec.push_back(channels);
+		channels *= 2;
 	}
+
+	std::vector<int> g_channel_vec(d_channel_vec);
+	std::reverse(g_channel_vec.begin(), g_channel_vec.end());
 
 	tf::Scope generator_scope = m_generator_root.NewSubScope("generator");
 	m_g_latent_ph = ops::Placeholder(generator_scope.WithOpName("noise_input"), tf::DT_FLOAT);
-	m_g_fake_images = createGenerator(channels, num_layers, generator_scope, tf::Input(m_g_latent_ph));
-	m_g_fake_score = createDiscriminator(channels, num_layers, m_generator_root.NewSubScope("fake_disc"), tf::Input(m_g_fake_images));
+	m_g_fake_images = createGenerator(g_channel_vec, num_layers, generator_scope, tf::Input(m_g_latent_ph));
+	m_g_fake_score = createDiscriminator(d_channel_vec, num_layers, m_generator_root.NewSubScope("fake_disc"), tf::Input(m_g_fake_images));
 
 	return m_generator_root.status();
 }
@@ -507,6 +518,9 @@ tf::Status DCGAN::trainStep(
 	return tf::Status::OK();
 }
 
+
+//------------------------------------------------------------------------
+
 tf::Status DCGAN::TensorboardGraph()
 {
 	tf::GraphDef graph;
@@ -515,4 +529,28 @@ tf::Status DCGAN::TensorboardGraph()
 	TF_CHECK_OK(tf::CreateSummaryFileWriter(1, 0, "./graphs/", ".img-graph", tf::Env::Default(), &w));
 	TF_CHECK_OK(w->WriteGraph(0, std::make_unique<tf::GraphDef>(graph)));
 	return tf::Status::OK();
+}
+
+
+//------------------------------------------------------------------------
+
+void DCGAN::printModel()
+{
+	std::cout << "==============================" << std::endl
+		      << "Discriminator weights" << std::endl
+		      << "==============================" << std::endl;
+
+	for (auto el : m_discriminator_weight_shapes)
+	{
+		std::cout << el.first << ": " << el.second.DebugString() << std::endl;
+	}
+
+	std::cout << "==============================" << std::endl
+		      << "Generator weights" << std::endl
+		      << "==============================" << std::endl;
+
+	for (auto el : m_generator_weight_shapes)
+	{
+		std::cout << el.first << ": " << el.second.DebugString() << std::endl;
+	}
 }

@@ -8,22 +8,21 @@
 TEST(CNNInit, ResolutionLatent)
 {
 	// Test if resolutions handled correctly by discriminator - must be 4x4 or greater
-	std::vector<int> ch{ 64, 128 };
 	DCGAN model1(0, 100);
-	EXPECT_FALSE(model1.discriminatorTrainingGraph(ch).ok());
+	EXPECT_FALSE(model1.discriminatorTrainingGraph(64).ok());
 	DCGAN model2(3, 100);
-	EXPECT_FALSE(model2.discriminatorTrainingGraph(ch).ok());
+	EXPECT_FALSE(model2.discriminatorTrainingGraph(64).ok());
 
 	// Test if latent dims handled correctly by generator - must be greater than 0
 	DCGAN model3(16, 0);
-	EXPECT_FALSE(model3.generatorTrainingGraph(ch).ok());
+	EXPECT_FALSE(model3.generatorTrainingGraph(64).ok());
 	DCGAN model4(16, 100);
-	EXPECT_TRUE(model4.discriminatorTrainingGraph(ch).ok());
-	EXPECT_TRUE(model4.generatorTrainingGraph(ch).ok());
+	EXPECT_TRUE(model4.discriminatorTrainingGraph(64).ok());
+	EXPECT_TRUE(model4.generatorTrainingGraph(64).ok());
 
 	// Test if resolutions handled correctly by generator - must be 4x4 or greater
-	EXPECT_FALSE(model1.generatorTrainingGraph(ch).ok());
-	EXPECT_FALSE(model2.generatorTrainingGraph(ch).ok());
+	EXPECT_FALSE(model1.generatorTrainingGraph(64).ok());
+	EXPECT_FALSE(model2.generatorTrainingGraph(64).ok());
 }
 
 
@@ -34,20 +33,12 @@ TEST(CNNInit, DiscriminatorLayers)
 	// Tests handles mismatch between number of layers and channel list
 	tf::Status s;
 
-	std::vector<int> ch1{ 64 };
-	DCGAN model1(4, 100);
-	s = model1.discriminatorTrainingGraph(ch1);
-	EXPECT_FALSE(s.ok()) << s.error_message();
-	DCGAN model2(8, 100);
-	s = model2.discriminatorTrainingGraph(ch1);
+	DCGAN model1(8, 100);
+	s = model1.discriminatorTrainingGraph(64);
 	EXPECT_TRUE(s.ok()) << s.error_message();
 
-	std::vector<int> ch2{ 64, 128, 256 };
-	DCGAN model3(16, 100);
-	s = model3.discriminatorTrainingGraph(ch2);
-	EXPECT_FALSE(s.ok()) << s.error_message();
-	DCGAN model4(32, 100);
-	s = model4.discriminatorTrainingGraph(ch2);
+	DCGAN model3(32, 100);
+	s = model3.discriminatorTrainingGraph(64);
 	EXPECT_TRUE(s.ok()) << s.error_message();
 }
 
@@ -59,20 +50,12 @@ TEST(CNNInit, GeneratorLayers)
 	// Tests handles mismatch between number of layers and channel list
 	tf::Status s;
 
-	std::vector<int> ch1{ 64 };
-	DCGAN model1(4, 100);
-	s = model1.generatorTrainingGraph(ch1);
-	EXPECT_FALSE(s.ok()) << s.error_message();
-	DCGAN model2(8, 100);
-	s = model2.generatorTrainingGraph(ch1);
+	DCGAN model1(8, 100);
+	s = model1.generatorTrainingGraph(64);
 	EXPECT_TRUE(s.ok()) << s.error_message();
 
-	std::vector<int> ch2{ 256, 128, 64 };
-	DCGAN model3(16, 100);
-	s = model3.generatorTrainingGraph(ch2);
-	EXPECT_FALSE(s.ok()) << s.error_message();
-	DCGAN model4(32, 100);
-	s = model4.generatorTrainingGraph(ch2);
+	DCGAN model2(32, 100);
+	s = model2.generatorTrainingGraph(64);
 	EXPECT_TRUE(s.ok()) << s.error_message();
 }
 
@@ -82,11 +65,10 @@ TEST(CNNInit, GeneratorLayers)
 TEST(CNNInit, InitialiseWeights)
 {
 	tf::Status s;
-	std::vector<int> d_ch{ 64 };
-	std::vector<int> g_ch{ 64 };
+
 	DCGAN model(8, 100);
-	ASSERT_TRUE(model.discriminatorTrainingGraph(d_ch).ok());
-	ASSERT_TRUE(model.generatorTrainingGraph(g_ch).ok());
+	ASSERT_TRUE(model.discriminatorTrainingGraph(32).ok());
+	ASSERT_TRUE(model.generatorTrainingGraph(32).ok());
 	s = model.initialiseModels();
 	EXPECT_TRUE(s.ok()) << s.error_message();
 }
@@ -97,13 +79,11 @@ TEST(CNNInit, InitialiseWeights)
 TEST(CNNInit, LatentNoise)
 {
 	tf::Status s;
-	std::vector<int> d_ch{ 64 };
-	std::vector<int> g_ch{ 64 };
 	std::vector<tf::Tensor> noise;
 
 	DCGAN model(8, 100);
-	ASSERT_TRUE(model.discriminatorTrainingGraph(d_ch).ok());
-	ASSERT_TRUE(model.generatorTrainingGraph(g_ch).ok());
+	ASSERT_TRUE(model.discriminatorTrainingGraph(64).ok());
+	ASSERT_TRUE(model.generatorTrainingGraph(64).ok());
 	ASSERT_TRUE(model.initialiseModels().ok());
 
 	s = model.getLatentNoise(noise, 0);
@@ -132,11 +112,8 @@ TEST(Optimisers, DOpt)
 	tf::Status s;
 	DCGAN model(8, 100);
 
-	std::vector<int> d_ch{ 64 };
-	std::vector<int> g_ch{ 64 };
-
-	ASSERT_TRUE(model.discriminatorTrainingGraph(d_ch).ok());
-	ASSERT_TRUE(model.generatorTrainingGraph(g_ch).ok());
+	ASSERT_TRUE(model.discriminatorTrainingGraph(16).ok());
+	ASSERT_TRUE(model.generatorTrainingGraph(16).ok());
 	ASSERT_TRUE(model.initialiseModels().ok());
 	s = model.createDiscOptimiser(0.0001, 0.5, 0.999);
 	EXPECT_TRUE(s.ok()) << s.error_message();
@@ -150,11 +127,8 @@ TEST(Optimisers, GOpt)
 	tf::Status s;
 	DCGAN model(8, 100);
 
-	std::vector<int> d_ch{ 64 };
-	std::vector<int> g_ch{ 64 };
-
-	ASSERT_TRUE(model.discriminatorTrainingGraph(d_ch).ok());
-	ASSERT_TRUE(model.generatorTrainingGraph(g_ch).ok());
+	ASSERT_TRUE(model.discriminatorTrainingGraph(8).ok());
+	ASSERT_TRUE(model.generatorTrainingGraph(8).ok());
 	ASSERT_TRUE(model.initialiseModels().ok());
 	s = model.createGenOptimiser(0.0001, 0.5, 0.999);
 	EXPECT_TRUE(s.ok()) << s.error_message();
@@ -168,13 +142,10 @@ TEST(OutputDims, GenOutputFixed)
 	tf::Status s;
 	std::vector<tf::Tensor> output;
 	DCGAN model1(8, 100);
-
-	std::vector<int> d_ch1{ 8 };
-	std::vector<int> g_ch1{ 8 };
 	std::vector<int> dims1{ 16, 8, 8, 3 };
 
-	ASSERT_TRUE(model1.discriminatorTrainingGraph(d_ch1).ok());
-	ASSERT_TRUE(model1.generatorTrainingGraph(g_ch1).ok());
+	ASSERT_TRUE(model1.discriminatorTrainingGraph(64).ok());
+	ASSERT_TRUE(model1.generatorTrainingGraph(64).ok());
 	ASSERT_TRUE(model1.initialiseModels().ok());
 
 	s = model1.runGenerator(output);
@@ -188,13 +159,10 @@ TEST(OutputDims, GenOutputFixed)
 
 	output.clear();
 	DCGAN model2(32, 100);
-
-	std::vector<int> d_ch2{ 64, 128, 256 };
-	std::vector<int> g_ch2{ 256, 128, 64 };
 	std::vector<int> dims2{ 16, 32, 32, 3 };
 
-	ASSERT_TRUE(model2.discriminatorTrainingGraph(d_ch2).ok());
-	ASSERT_TRUE(model2.generatorTrainingGraph(g_ch2).ok());
+	ASSERT_TRUE(model2.discriminatorTrainingGraph(64).ok());
+	ASSERT_TRUE(model2.generatorTrainingGraph(64).ok());
 	ASSERT_TRUE(model2.initialiseModels().ok());
 
 	s = model2.runGenerator(output);
@@ -215,13 +183,10 @@ TEST(OutputDims, GenOutputNoise)
 	std::vector<tf::Tensor> noise;
 	std::vector<tf::Tensor> output;
 	DCGAN model1(8, 100);
-
-	std::vector<int> d_ch1{ 64 };
-	std::vector<int> g_ch1{ 64 };
 	std::vector<int> dims1{ 4, 8, 8, 3 };
 
-	ASSERT_TRUE(model1.discriminatorTrainingGraph(d_ch1).ok());
-	ASSERT_TRUE(model1.generatorTrainingGraph(g_ch1).ok());
+	ASSERT_TRUE(model1.discriminatorTrainingGraph(32).ok());
+	ASSERT_TRUE(model1.generatorTrainingGraph(32).ok());
 	ASSERT_TRUE(model1.initialiseModels().ok());
 	ASSERT_TRUE(model1.getLatentNoise(noise, 4).ok());
 
@@ -237,13 +202,10 @@ TEST(OutputDims, GenOutputNoise)
 	noise.clear();
 	output.clear();
 	DCGAN model2(32, 100);
-
-	std::vector<int> d_ch2{ 64, 128, 256 };
-	std::vector<int> g_ch2{ 256, 128, 64 };
 	std::vector<int> dims2{ 8, 32, 32, 3 };
 
-	ASSERT_TRUE(model2.discriminatorTrainingGraph(d_ch2).ok());
-	ASSERT_TRUE(model2.generatorTrainingGraph(g_ch2).ok());
+	ASSERT_TRUE(model2.discriminatorTrainingGraph(64).ok());
+	ASSERT_TRUE(model2.generatorTrainingGraph(64).ok());
 	ASSERT_TRUE(model2.initialiseModels().ok());
 	ASSERT_TRUE(model2.getLatentNoise(noise, 8).ok());
 
@@ -269,11 +231,8 @@ TEST(OutputDims, DiscOutput)
 	DCGAN model1(8, 100);
 	int dims{ 4 };
 
-	std::vector<int> d_ch1{ 64 };
-	std::vector<int> g_ch1{ 64 };
-
-	ASSERT_TRUE(model1.discriminatorTrainingGraph(d_ch1).ok());
-	ASSERT_TRUE(model1.generatorTrainingGraph(g_ch1).ok());
+	ASSERT_TRUE(model1.discriminatorTrainingGraph(8).ok());
+	ASSERT_TRUE(model1.generatorTrainingGraph(8).ok());
 	ASSERT_TRUE(model1.initialiseModels().ok());
 	ASSERT_TRUE(model1.getLatentNoise(noise, 4).ok());
 
@@ -289,11 +248,8 @@ TEST(OutputDims, DiscOutput)
 	DCGAN model2(32, 100);
 	dims = 8;
 
-	std::vector<int> d_ch2{ 64, 128, 256 };
-	std::vector<int> g_ch2{ 256, 128, 64 };
-
-	ASSERT_TRUE(model2.discriminatorTrainingGraph(d_ch2).ok());
-	ASSERT_TRUE(model2.generatorTrainingGraph(g_ch2).ok());
+	ASSERT_TRUE(model2.discriminatorTrainingGraph(16).ok());
+	ASSERT_TRUE(model2.generatorTrainingGraph(16).ok());
 	ASSERT_TRUE(model2.initialiseModels().ok());
 	ASSERT_TRUE(model2.getLatentNoise(noise, 8).ok());
 
@@ -316,11 +272,8 @@ TEST(Training, TrainStep)
 	DCGAN model(8, 100);
 	int dims{ 4 };
 
-	std::vector<int> d_ch{ 64 };
-	std::vector<int> g_ch{ 64 };
-
-	ASSERT_TRUE(model.discriminatorTrainingGraph(d_ch).ok());
-	ASSERT_TRUE(model.generatorTrainingGraph(g_ch).ok());
+	ASSERT_TRUE(model.discriminatorTrainingGraph(64).ok());
+	ASSERT_TRUE(model.generatorTrainingGraph(64).ok());
 	ASSERT_TRUE(model.createDiscOptimiser(0.0001, 0.5, 0.999).ok());
 	ASSERT_TRUE(model.createGenOptimiser(0.0001, 0.5, 0.999).ok());
 	ASSERT_TRUE(model.initialiseModels().ok());

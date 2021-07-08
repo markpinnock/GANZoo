@@ -12,16 +12,14 @@ int main(int argc, char** argv)
 	TF_CHECK_OK(d.createImageGraph(32, 32));
 
 	DCGAN model(32, 100);
-	std::vector<int> d_ch{ 64, 128, 256 };
-	std::vector<int> g_ch{ 256, 128, 64 };
 
-	TF_CHECK_OK(model.discriminatorTrainingGraph(d_ch));
-	TF_CHECK_OK(model.generatorTrainingGraph(g_ch));
-	TF_CHECK_OK(model.createDiscOptimiser(0.0001, 0.5, 0.999));
-	TF_CHECK_OK(model.createGenOptimiser(0.0001, 0.5, 0.999));
+	TF_CHECK_OK(model.discriminatorTrainingGraph(32));
+	TF_CHECK_OK(model.generatorTrainingGraph(32));
+	TF_CHECK_OK(model.createDiscOptimiser(0.001, 0.5, 0.999));
+	TF_CHECK_OK(model.createGenOptimiser(0.001, 0.5, 0.999));
 	TF_CHECK_OK(model.initialiseModels());
 	//TF_CHECK_OK(model.getLatentNoise(noise, 4));
-
+	model.printModel();
 
 	//TF_CHECK_OK(model.runGenerator(noise, g_output));
 	

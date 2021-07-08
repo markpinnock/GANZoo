@@ -100,8 +100,8 @@ public:
 	tf::Output createGenerator(
 		const std::vector<int>& channels, const int num_layers,
 		tf::Scope& scope, tf::Input& input);
-	tf::Status discriminatorTrainingGraph(const std::vector<int>& channels);
-	tf::Status generatorTrainingGraph(const std::vector<int>& channels);
+	tf::Status discriminatorTrainingGraph(int channels);
+	tf::Status generatorTrainingGraph(int channels);
 	tf::Status getLatentNoise(std::vector<tf::Tensor>& noise_minibatch, const int num_noise);
 	tf::Status createDiscOptimiser(const float learning_rate, const float beta1, const float beta2);
 	tf::Status createGenOptimiser(const float learning_rate, const float beta1, const float beta2);
@@ -114,6 +114,7 @@ public:
 		std::vector<float>& discriminator_losses,
 		std::vector<float>& generator_losses);
 	tf::Status TensorboardGraph();
+	void printModel();
 };
 
 #endif // !DCGAN_H
