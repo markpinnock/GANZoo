@@ -1,11 +1,10 @@
 import tensorflow as tf
-import tensorflow.keras as keras
 from abc import abstractclassmethod
 
-from networks.Networks import ProStyleGANDiscriminator, ProGANGenerator, StyleGANGenerator
-from utils.DataLoaders import DiffAug
+from networks.networks import ProStyleGANDiscriminator, ProGANGenerator, StyleGANGenerator
+from utils.dataloaders import DiffAug
 
-from utils.Losses import (
+from utils.losses import (
     minimax_D,
     minimax_G,
     mod_minimax_G,
@@ -17,42 +16,36 @@ from utils.Losses import (
 )
 
 
-class BaseGAN(keras.Model):
+class BaseGAN(tf.keras.Model):
 
     def __init__(self, config):
         super().__init__(name="GAN")
         self.latent_dims = config["LATENT_DIM"]
         self.GAN_type = config["MODEL"]
         self.n_critic = config["N_CRITIC"]
-        self.loss_fn = config["LOSS_FN"]
-
-        loss_dict = {
-            "minimax": [minimax_D, minimax_G],
-            "mod_minimax":[minimax_D, minimax_G],
-            "least_square": [least_squares_D, least_squares_G],
-            "wasserstein": [wasserstein_D, wasserstein_G],
-            "wasserstein-GP": [wasserstein_D, wasserstein_G]
-            }
-
-        self.metric_dict = {
-            "g_metric": keras.metrics.Mean(),
-            "d_metric": keras.metrics.Mean()
-        }
-
-        opt_dict = {
-            "Adam": keras.optimizers.Adam,
-            "RMSprop": keras.optimizers.RMSprop
-        }
-
-        self.loss_D = loss_dict[self.loss_fn][0]
-        self.loss_G = loss_dict[self.loss_fn][1]
-        self.g_optimiser = opt_dict[config["G_OPT"]](*config["G_ETA"])
-        self.d_optimiser = opt_dict[config["D_OPT"]](*config["D_ETA"])
+        self.img_dims = [config["MAX_RES"], config["MAX_RES"], 3]
 
         if config["AUGMENT"]:
             self.Aug = DiffAug({"colour": True, "translation": True, "cutout": True})
         else:
             self.Aug = None
+
+    def compile(self, g_optimiser, d_optimiser, loss):
+        self.g_optimiser = g_optimiser
+        self.d_optimiser = d_optimiser
+
+        loss_dict = {
+            "minmax": [minimax_D, minimax_G],
+            "mod_minimax":[minimax_D, mod_minimax_G],
+            "least_square": [least_squares_D, least_squares_G],
+            "wasserstein": [wasserstein_D, wasserstein_G],
+            "wasserstein-GP": [wasserstein_D, wasserstein_G]
+            }
+
+        self.loss_fn = loss
+        self.d_loss, self.g_loss = loss_dict[loss]
+        self.g_metric = tf.keras.metrics.Mean(name="g_metric")
+        self.d_metric = tf.keras.metrics.Mean(name="d_metric")
     
     @abstractclassmethod
     def discriminator_step(self):
@@ -65,7 +58,23 @@ class BaseGAN(keras.Model):
     @abstractclassmethod
     def train_step(self):
         raise NotImplementedError
+    
+    def summary(self):
+        inputs = tf.keras.Input(shape=self.img_dims)
+        outputs = self.Generator.call(inputs)
+        print("===========================================================")
+        print("Generator")
+        print("===========================================================")
+        tf.keras.Model(inputs=inputs, outputs=outputs).summary()
+        inputs = tf.keras.Input(shape=self.img_dims)
+        outputs = self.Discriminator.call(inputs)
+        print("===========================================================")
+        print("Discriminator")
+        print("===========================================================")
+        tf.keras.Model(inputs=inputs, outputs=outputs).summary()        
 
+
+#-------------------------------------------------------------------------
 
 class DCGAN(BaseGAN):
 
@@ -127,16 +136,18 @@ class DCGAN(BaseGAN):
         self.generator_step()
 
 
-class ProStyleGAN(BaseGAN):
+#-------------------------------------------------------------------------
+
+class ProgStyleGAN(BaseGAN):
 
     def __init__(self, config):
         super().__init__(config)
 
-        self.Generator = StyleGANGenerator(config=config, name="Generator")
+        self.Generator = ProGANGenerator(config=config, name="Generator")
         self.Discriminator = ProStyleGANDiscriminator(config=config, name="Discriminator")
 
         # Exponential moving average of generator weights for images
-        self.EMAGenerator = StyleGANGenerator(config=config, name="EMAGenerator")
+        self.EMAGenerator = ProGANGenerator(config=config, name="EMAGenerator")
         self.update_mvag_generator(initial=True)
         self.EMA_beta = config["EMA_BETA"]
         self.fade_iter = 0
@@ -207,7 +218,7 @@ class ProStyleGAN(BaseGAN):
             with tf.GradientTape() as d_tape:
                 d_pred_fake = self.Discriminator(d_fake_images, scale, training=True)
                 d_pred_real = self.Discriminator(d_real_batch, scale, training=True)
-                d_loss = self.loss_D(d_pred_real, d_pred_fake)
+                d_loss = self.d_loss(d_pred_real, d_pred_fake)
 
                 if self.loss_fn == "wasserstein-GP" and self.GAN_type == "ProGAN":
                     d_loss += 0.001 * tf.reduce_mean(tf.square(d_pred_real))
@@ -221,7 +232,7 @@ class ProStyleGAN(BaseGAN):
             self.d_optimiser.apply_gradients(zip(d_grads, self.Discriminator.trainable_variables))
 
             # Update metrics
-            self.metric_dict["d_metric"].update_state(d_loss)
+            self.d_metric.update_state(d_loss)
 
     def generator_step(self, mb_size, scale):
         # Generator training
@@ -232,11 +243,11 @@ class ProStyleGAN(BaseGAN):
             g_fake_images = self.Generator(noise, scale, training=True)
             if self.Aug: g_fake_images = self.Aug.augment(g_fake_images)
             g_pred = self.Discriminator(g_fake_images, scale, training=True)
-            g_loss = self.loss_G(g_pred)
+            g_loss = self.g_loss(g_pred)
         
         g_grads = g_tape.gradient(g_loss, self.Generator.trainable_variables)
         self.g_optimiser.apply_gradients(zip(g_grads, self.Generator.trainable_variables))
-        self.metric_dict["g_metric"].update_state(g_loss)
+        self.g_metric.update_state(g_loss)
     
     # @tf.function
     def train_step(self, real_images, scale):

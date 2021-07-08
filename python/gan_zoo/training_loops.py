@@ -5,40 +5,6 @@ import os
 import tensorflow as tf
 
 
-def trace_graph(model, input_zeros):
-
-    @tf.function
-    def trace(x):
-        return model(x, 4)
-
-    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    log_dir = "C:/Users/roybo/OneDrive - University College London/PhD/PhD_Prog/009_GAN_CT/logs/" + current_time
-    summary_writer = tf.summary.create_file_writer(log_dir)
-
-    tf.summary.trace_on(graph=True)
-    trace(input_zeros)
-
-    with summary_writer.as_default():
-        tf.summary.trace_export("graph", step=0)
-
-
-def print_model_summary(model, res):
-    print("===================================")
-    print(model.name)
-    print("===================================")
-
-    weights = []
-    total_weights = 0
-
-    for weight in model.layers[-1].weights:
-        print(weight.name, weight.shape.as_list())
-        total_weights += np.prod(weight.shape.as_list())
-
-    print("===================================")
-    print(f"Total weights: {total_weights}")
-    print("===================================")
-
-
 def training_loop(config, idx, Model, data, latent_sample, fade=False):
     SCALE = config["SCALES"][idx]
     EPOCHS = config["EPOCHS"][idx]
@@ -62,14 +28,14 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
 
     for epoch in range(EPOCHS):
 
-        Model.metric_dict["g_metric"].reset_states()
-        Model.metric_dict["d_metric"].reset_states()
+        Model.g_metric.reset_states()
+        Model.d_metric.reset_states()
 
         for imgs in data:
             if np.random.rand() > 0.5: imgs = imgs[:, :, ::-1, :]
             _ = Model.train_step(imgs, scale=scale_idx)
 
-        print(f"Scale {SCALE} Fade {fade} Ep {epoch + 1}, G: {Model.metric_dict['g_metric'].result():.4f}, D: {Model.metric_dict['d_metric'].result():.4f}")
+        print(f"Scale {SCALE} Fade {fade} Ep {epoch + 1}, G: {Model.g_metric.result():.4f}, D: {Model.d_metric.result():.4f}")
 
         # Generate example images
         if (epoch + 1) % 1 == 0 and not fade:

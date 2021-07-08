@@ -1,0 +1,39 @@
+{
+    "EXPT":
+    {
+        "SAVE_PATH": "<path/to/save/directory>",
+        "DATA_PATH": "<path/to/data>",
+        "EXPT_NAME": "test2",
+        "NUM_EXAMPLES": 16,
+        "VERBOSE": 1,
+        "DATASET_SIZE": 0,
+        "FROM_RAM": 1,
+        "SAVE_EVERY": 0,
+        "SCALES": 64,
+        "EPOCHS": 500,
+        "MB_SIZE": 16
+    },
+    "HYPERPARAMS":
+    {
+        "MODEL": "DCGAN",
+        "LOSS_FN": "mod_minimax",
+        "N_CRITIC": 1,
+        "G_OPT": "Adam",
+        "D_OPT": "Adam",
+        "G_ETA": [2e-4, 0.5, 0.999],
+        "D_ETA": [2e-4, 0.5, 0.999],
+        "NDF": 16,
+        "NGF": 16,
+        "D_DENSE": 0,
+        "G_DENSE": 0,
+        "D_ACT": "relu",
+        "G_ACT": "lrelu",
+        "LATENT_DIM": 128,
+        "MAX_CHANNELS": 128,
+        "MAX_RES": 64,
+        "AUGMENT": 0,
+        "EMA_BETA": 0.99,
+        "G_OUT": "linear",
+        "ADD_NOISE": 0
+    }
+}

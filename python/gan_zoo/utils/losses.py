@@ -1,5 +1,4 @@
 import tensorflow as tf
-import tensorflow.keras as keras
 
 
 #-------------------------------------------------------------------------
@@ -9,18 +8,18 @@ import tensorflow.keras as keras
 
 @tf.function
 def minimax_D(real_output, fake_output):
-    real_loss = keras.losses.binary_crossentropy(tf.ones_like(real_output), real_output, from_logits=True)
-    fake_loss = keras.losses.binary_crossentropy(tf.zeros_like(fake_output), fake_output, from_logits=True)
+    real_loss = tf.keras.losses.binary_crossentropy(tf.ones_like(real_output), real_output, from_logits=True)
+    fake_loss = tf.keras.losses.binary_crossentropy(tf.zeros_like(fake_output), fake_output, from_logits=True)
     return real_loss + fake_loss
 
 @tf.function
 def minimax_G(fake_output):
-    fake_loss = -keras.losses.binary_crossentropy(tf.zeros_like(fake_output), fake_output, from_logits=True)
+    fake_loss = -tf.keras.losses.binary_crossentropy(tf.zeros_like(fake_output), fake_output, from_logits=True)
     return fake_loss
 
 @tf.function
 def mod_minimax_G(fake_output):
-    fake_loss = keras.losses.binary_crossentropy(tf.ones_like(fake_output), fake_output, from_logits=True)
+    fake_loss = tf.keras.losses.binary_crossentropy(tf.ones_like(fake_output), fake_output, from_logits=True)
     return fake_loss
 
 #-------------------------------------------------------------------------
@@ -31,8 +30,8 @@ def mod_minimax_G(fake_output):
 
 @tf.function
 def least_squares_D(real_output, fake_output):
-    real_loss = 0.5 * tf.reduce_mean(tf.square(real_img - 1))
-    fake_loss = 0.5 * tf.reduce_mean(tf.square(fake_img))
+    real_loss = 0.5 * tf.reduce_mean(tf.square(real_output - 1))
+    fake_loss = 0.5 * tf.reduce_mean(tf.square(fake_output))
     return fake_loss + real_loss
 
 @tf.function
@@ -54,7 +53,7 @@ def wasserstein_D(real_output, fake_output):
 def wasserstein_G(fake_output):
     return tf.reduce_mean(-fake_output)
 
-class WeightClipConstraint(keras.constraints.Constraint):
+class WeightClipConstraint(tf.keras.constraints.Constraint):
 
     """ Clips weights in WGAN
         - clip_val: value to be clipped to (+/- clip-val) """
@@ -63,7 +62,7 @@ class WeightClipConstraint(keras.constraints.Constraint):
         self.clip_val = clip_val
     
     def call(self, weights):
-        return keras.backend.clip(weights, -self.clip_val, self.clip_val)
+        return tf.keras.backend.clip(weights, -self.clip_val, self.clip_val)
     
     def get_config(self):
         return {"clip_value": self.clip_val}

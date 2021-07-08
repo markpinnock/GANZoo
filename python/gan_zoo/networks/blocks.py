@@ -1,8 +1,7 @@
 import numpy as np
 import tensorflow as tf
-import tensorflow.keras as keras
 
-from .Layers import (
+from .layers import (
     fade_in,
     mb_stddev,
     pixel_norm,
@@ -17,15 +16,15 @@ from .Layers import (
 #-------------------------------------------------------------------------
 """ Style mapping network """
 
-class MappingNet(keras.layers.Layer):
+class MappingNet(tf.keras.layers.Layer):
     
     def __init__(self, num_units, latent_dim, num_layers, name=None):
         super().__init__(name=name)
         self.lr_mul = 0.01
         std_init = 1 / self.lr_mul
 
-        self.dense = [EqLrDense(units=num_units, kernel_initializer=keras.initializers.RandomNormal(0, std_init), name=f"dense_{i}") for i in range(num_layers - 1)]
-        self.dense.append(EqLrDense(units=latent_dim, kernel_initializer=keras.initializers.RandomNormal(0, std_init), name=f"dense_{num_layers - 1}"))
+        self.dense = [EqLrDense(units=num_units, kernel_initializer=tf.keras.initializers.RandomNormal(0, std_init), name=f"dense_{i}") for i in range(num_layers - 1)]
+        self.dense.append(EqLrDense(units=latent_dim, kernel_initializer=tf.keras.initializers.RandomNormal(0, std_init), name=f"dense_{num_layers - 1}"))
 
     def call(self, z):
         w = pixel_norm(z)
@@ -38,11 +37,11 @@ class MappingNet(keras.layers.Layer):
 #-------------------------------------------------------------------------
 """ Prog- and StyleGAN Discriminator block """
 # TODO: separate into last and prev blocks
-class GANDiscBlock(keras.layers.Layer):
+class GANDiscBlock(tf.keras.layers.Layer):
     def __init__(self, ch, next_block, config, name=None):
         super().__init__(name=name)
         double_ch = np.min([ch * 2, config["MAX_CHANNELS"]])
-        initialiser = keras.initializers.RandomNormal(0, 1)
+        initialiser = tf.keras.initializers.RandomNormal(0, 1)
 
         self.next_block = next_block
         self.from_rgb = EqLrConv2D(filters=ch, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="from_rgb")
@@ -50,7 +49,7 @@ class GANDiscBlock(keras.layers.Layer):
         # If this is last discriminator block, collapse to prediction
         if next_block == None:
             self.conv = EqLrConv2D(filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv")
-            self.flat = keras.layers.Flatten(name="flatten")
+            self.flat = tf.keras.layers.Flatten(name="flatten")
             self.dense = EqLrDense(units=config["LATENT_DIM"], kernel_initializer=initialiser, name="dense")
             self.out = EqLrDense(units=1, kernel_initializer=initialiser, name="out")
         
@@ -58,7 +57,7 @@ class GANDiscBlock(keras.layers.Layer):
         else:
             self.conv1 = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv1")
             self.conv2 = EqLrConv2D(filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv2")
-            self.downsample = keras.layers.AveragePooling2D(name="down2D")
+            self.downsample = tf.keras.layers.AveragePooling2D(name="down2D")
 
     def call(self, x, fade_alpha=None, first_block=True):
 
@@ -96,16 +95,16 @@ class GANDiscBlock(keras.layers.Layer):
 #-------------------------------------------------------------------------
 """ Basic ProGAN Generator block used after ProGenFirstBlock"""
 
-class ProGenLaterBlock(keras.layers.Layer):
+class ProGenLaterBlock(tf.keras.layers.Layer):
     def __init__(self, ch, res, prev_block, config, name=None):
         super().__init__(name=name)
-        initialiser = keras.initializers.RandomNormal(0, 1)
+        initialiser = tf.keras.initializers.RandomNormal(0, 1)
         
         # Previous (lower resolution) block
         self.prev_block = prev_block
         
         # Up-sampling and convolutional layers
-        self.upsample = keras.layers.UpSampling2D(interpolation="bilinear", name="up2D")
+        self.upsample = tf.keras.layers.UpSampling2D(interpolation="bilinear", name="up2D")
         self.conv1 = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv1")
         self.conv2 = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv2")
         self.to_rgb = EqLrConv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="to_rgb")
@@ -117,9 +116,9 @@ class ProGenLaterBlock(keras.layers.Layer):
         
         # Up-sample and perform convolution on non-RGB
         prev_x = self.upsample(prev_x)
-        x = pixel_norm(tf.nn.leaky_relu(self.conv1(prev_x, noise=None), alpha=0.2))
-        x = pixel_norm(tf.nn.leaky_relu(self.conv2(x, noise=None), alpha=0.2))
-        rgb = self.to_rgb(x, noise=None)
+        x = pixel_norm(tf.nn.leaky_relu(self.conv1(prev_x), alpha=0.2)) # TODO noise = None
+        x = pixel_norm(tf.nn.leaky_relu(self.conv2(x), alpha=0.2)) # TODO noise = None
+        rgb = self.to_rgb(x) # TODO noise = None
 
         # If fade in, merge previous block's RGB and this block's RGB
         if fade_alpha != None:
@@ -131,16 +130,16 @@ class ProGenLaterBlock(keras.layers.Layer):
 #-------------------------------------------------------------------------
 """ Basic StyleGAN Generator block used after StyleGenFirstBlock"""
 
-class StyleGenLaterBlock(keras.layers.Layer):
+class StyleGenLaterBlock(tf.keras.layers.Layer):
     def __init__(self, ch, res, prev_block, config, name=None):
         super().__init__(name=name)
-        initialiser = keras.initializers.RandomNormal(0, 1)
+        initialiser = tf.keras.initializers.RandomNormal(0, 1)
 
         # Previous (lower resolution) block
         self.prev_block = prev_block
 
         # Up-sampling and convolutional layers
-        self.upsample = keras.layers.UpSampling2D(interpolation="bilinear", name="up2D")
+        self.upsample = tf.keras.layers.UpSampling2D(interpolation="bilinear", name="up2D")
         self.conv1 = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv1")
         self.conv2 = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv2")
         self.to_rgb = EqLrConv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="to_rgb")
@@ -189,14 +188,14 @@ class StyleGenLaterBlock(keras.layers.Layer):
 #-------------------------------------------------------------------------
 """ First ProGAN generator block used for lowest res """
 
-class ProGenFirstBlock(keras.layers.Layer):
+class ProGenFirstBlock(tf.keras.layers.Layer):
     def __init__(self, ch, res, config, name=None):
         super().__init__(name=name)
-        initialiser = keras.initializers.RandomNormal(0, 1)
+        initialiser = tf.keras.initializers.RandomNormal(0, 1)
 
         # Dense latent noise mapping and initial convolutional layers
         self.dense = EqLrDense(units=res * res * config["LATENT_DIM"], kernel_initializer=initialiser, name="dense")
-        self.reshape = keras.layers.Reshape((res, res, config["LATENT_DIM"]))
+        self.reshape = tf.keras.layers.Reshape((res, res, config["LATENT_DIM"]))
         self.conv = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv")
         self.to_rgb = EqLrConv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="to_rgb")
 
@@ -216,10 +215,10 @@ class ProGenFirstBlock(keras.layers.Layer):
 #-------------------------------------------------------------------------
 """ First StyleGAN generator block used for lowest res """
 
-class StyleGenFirstBlock(keras.layers.Layer):
+class StyleGenFirstBlock(tf.keras.layers.Layer):
     def __init__(self, ch, res, config, name=None):
         super().__init__(name=name)
-        initialiser = keras.initializers.RandomNormal(0, 1)
+        initialiser = tf.keras.initializers.RandomNormal(0, 1)
 
         # Constant input and convolutional layers
         self.constant = self.add_weight(name="constant", shape=[1, res, res, config["LATENT_DIM"]], initializer="ones", trainable=True)

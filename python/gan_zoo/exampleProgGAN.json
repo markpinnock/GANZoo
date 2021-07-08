@@ -1,0 +1,36 @@
+{
+    "EXPT":
+    {
+        "SAVE_PATH": "<path/to/save/directory>",
+        "DATA_PATH": "<path/to/data>",
+        "EXPT_NAME": "test",
+        "NUM_EXAMPLES": 16,
+        "VERBOSE": 0,
+        "GRAPH": 0,
+        "DATASET_SIZE": 3000,
+        "FROM_RAM": 0,
+        "SAVE_EVERY": 0,
+        "MB_SIZE": [16, 16, 16, 16, 8],
+        "SCALES": [4, 8, 16, 32, 64],
+        "EPOCHS": [5, 8, 8, 10, 10],
+        "G_OUT": "linear"
+    },
+    "HYPERPARAMS":
+    {
+        "MODEL": "ProGAN",
+        "LOSS_FN": "wasserstein-GP",
+        "N_CRITIC": 1,
+        "OPT": "Adam",
+        "G_ETA": [1e-3, 0.0, 0.99],
+        "D_ETA": [1e-3, 0.0, 0.99],
+        "NDF": 16,
+        "NGF": 16,
+        "LATENT_DIM": 128,
+        "MAX_CHANNELS": 128,
+        "MAX_RES": 64,
+        "START_RES": 4,
+        "AUGMENT": 0,
+        "EMA_BETA": 0.99,
+        "G_OUT": "linear"
+    }
+}

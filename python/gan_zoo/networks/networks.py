@@ -1,9 +1,8 @@
 import numpy as np
 import tensorflow as tf
-import tensorflow.keras as keras
 from abc import abstractclassmethod
 
-from .Blocks import (
+from .blocks import (
     ProGenFirstBlock,
     ProGenLaterBlock,
     GANDiscBlock,
@@ -12,13 +11,13 @@ from .Blocks import (
     MappingNet
     )
 
-from utils.Losses import WeightClipConstraint
+from utils.losses import WeightClipConstraint
 
 
 #-------------------------------------------------------------------------
 """ Base class for both generator and discriminator """
 
-class BaseProStyleGANModel(keras.Model):
+class BaseProStyleGANModel(tf.keras.Model):
 
     def __init__(self, config, name):
         super().__init__(name=name)

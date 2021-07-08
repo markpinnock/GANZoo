@@ -1,6 +1,8 @@
 __pycache__
 .vscode
 .vs
+*.json
+!example*.json
 third-party/*/include
 third-party/*/lib
 out
