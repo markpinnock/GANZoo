@@ -73,7 +73,22 @@ class WeightClipConstraint(tf.keras.constraints.Constraint):
     https://arxiv.org/abs/1704.00028 """
 
 @tf.function
-def gradient_penalty(real_img, fake_img, D, scale):
+def gradient_penalty(real_img, fake_img, D):
+    epsilon = tf.random.uniform([fake_img.shape[0], 1, 1, 1], 0.0, 1.0)
+    x_hat = (epsilon * real_img) + ((1 - epsilon) * fake_img)
+
+    with tf.GradientTape() as tape:
+        tape.watch(x_hat)
+        D_hat = D(x_hat, training=True)
+    
+    gradients = tape.gradient(D_hat, x_hat)
+    grad_norm = tf.sqrt(tf.reduce_sum(tf.square(gradients), axis=(1, 2)) + 1e-8)
+    grad_penalty = tf.reduce_mean(tf.square(grad_norm - 1))
+
+    return grad_penalty
+
+@tf.function
+def gradient_penalty_scale(real_img, fake_img, D, scale):
     epsilon = tf.random.uniform([fake_img.shape[0], 1, 1, 1], 0.0, 1.0)
     x_hat = (epsilon * real_img) + ((1 - epsilon) * fake_img)
 
