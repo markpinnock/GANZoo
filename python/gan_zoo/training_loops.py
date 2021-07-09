@@ -23,8 +23,7 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
         num_iter = 0
     
     Model.fade_set(num_iter)
-    scale_idx = int(np.log2(SCALE / config["SCALES"][0]))
-    Model.set_trainable_layers(scale_idx)
+    Model.set_scale(idx, config["MB_SIZE"][idx])
 
     for epoch in range(EPOCHS):
 
@@ -33,14 +32,14 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
 
         for imgs in data:
             if np.random.rand() > 0.5: imgs = imgs[:, :, ::-1, :]
-            _ = Model.train_step(imgs, scale=scale_idx)
+            _ = Model.train_step(imgs)
 
         print(f"Scale {SCALE} Fade {fade} Ep {epoch + 1}, G: {Model.g_metric.result():.4f}, D: {Model.d_metric.result():.4f}")
 
         # Generate example images
         if (epoch + 1) % 1 == 0 and not fade:
-            pred = Model.EMAGenerator(latent_sample, scale=scale_idx, training=False)
-            pred = Model.Generator(latent_sample, scale=scale_idx, training=False)
+            pred = Model.EMAGenerator(latent_sample, training=False)
+            pred = Model.Generator(latent_sample, training=False)
             if config["G_OUT"] == "linear": pred = np.clip(pred, -1, 1)
 
             fig = plt.figure(figsize=(4, 4))
@@ -51,7 +50,7 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
                 plt.axis('off')
 
             plt.tight_layout()
-            plt.savefig(f"{IMG_SAVE_PATH}{scale_idx}_scale_{SCALE}_epoch_{epoch + 1:02d}.png", dpi=250)
+            plt.savefig(f"{IMG_SAVE_PATH}{idx}_scale_{SCALE}_epoch_{epoch + 1:02d}.png", dpi=250)
             plt.close()
 
         # Save checkpoint

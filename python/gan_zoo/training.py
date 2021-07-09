@@ -8,7 +8,7 @@ import sys
 import tensorflow as tf
 
 from training_loops import training_loop
-from networks.model import ProgStyleGAN
+from networks.ProgGAN import ProgressiveGAN
 from utils.dataloaders import ImgLoader, DiffAug
 
 
@@ -35,7 +35,7 @@ LATENT_SAMPLE = tf.random.normal([CONFIG["EXPT"]["NUM_EXAMPLES"], CONFIG["HYPERP
 
 # Create optimisers and compile model
 if CONFIG["HYPERPARAMS"]["MODEL"] in ["ProGAN", "StyleGAN"]:
-    Model = ProgStyleGAN(config=CONFIG["HYPERPARAMS"])
+    Model = ProgressiveGAN(config=CONFIG["HYPERPARAMS"])
 
 if CONFIG["HYPERPARAMS"]["OPT"] == "Adam":
     g_opt = tf.keras.optimizers.Adam(*CONFIG["HYPERPARAMS"]["G_ETA"], name="g_opt")
