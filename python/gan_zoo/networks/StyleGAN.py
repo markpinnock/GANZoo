@@ -1,10 +1,9 @@
-from gan_zoo.networks.blocks import GANDiscBlock
 import numpy as np
 import tensorflow as tf
 
-from .blocks import StyleGenFirstBlock, StyleGenLaterBlock, ProStyleGANDiscriminator
-from sharedarchitecture.progressive import ProgressiveBase, ProgressiveGeneratorBase, ProgressiveDiscriminatorBase
-
+from .blocks.styleganblocks import StyleGANGeneratorFirstBlock, StyleGANGeneratorLaterBlock, MappingNet
+from .sharedarchitecture.progressiveblocks import ProgressiveDiscriminatorBlock
+from .sharedarchitecture.progressivemodel import ProgressiveBase, ProgressiveGeneratorBase, ProgressiveDiscriminatorBase
 
 #-------------------------------------------------------------------------
 
@@ -39,6 +38,18 @@ class StyleGAN(ProgressiveBase):
         self.update_mvag_generator()
         self.fade_count += 1
 
+        return {"d_loss": self.d_metric.result(), "g_loss": self.g_metric.result()}
+    
+    def call(self, num_examples: int = None, training: bool = False):
+        if num_examples == 0:
+            imgs = self.Generator(self.fixed_noise, training=training)
+        
+        else:
+            latent_noise = tf.random.normal((num_examples, self.latent_dims), dtype=tf.float32)
+            imgs = self.Generator(latent_noise, training=training)
+
+        return imgs
+
 
 #-------------------------------------------------------------------------
 """ Generator class for StyleGAN """
@@ -48,7 +59,7 @@ class StyleGANGenerator(ProgressiveGeneratorBase):
     def __init__(self, config, name="Generator"):
         super().__init__(config, name)
         self.StyleMap = None
-        self.build_network(StyleGenFirstBlock, StyleGenLaterBlock, config)
+        self.build_network(StyleGANGeneratorFirstBlock, StyleGANGeneratorLaterBlock, config)
 
     def build_network(self, FirstBlock, LaterBlock, config):
         super().build_network(FirstBlock, LaterBlock, config)
@@ -73,7 +84,7 @@ class StyleGANDiscriminator(ProgressiveDiscriminatorBase):
 
     def __init__(self, config, name=None):
         super().__init__(config, name="Discriminator")
-        self.build_network(GANDiscBlock)
+        self.build_network(ProgressiveDiscriminatorBlock)
 
     def call(self, x, training=True):
         x = self.blocks[self.scale](x, self.alpha)

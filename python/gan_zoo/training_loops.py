@@ -3,6 +3,30 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import tensorflow as tf
+from tensorflow.python.keras.api._v1.keras import callbacks
+
+
+class ExampleImages(tf.keras.callbacks.Callback):
+    def __init__(self, save_path, idx, scale):
+        super().__init__()
+        self.save_path = save_path
+        self.idx = idx
+        self.scale = scale
+
+    def on_epoch_end(self, epoch, logs=None):
+        pred = self.model(0) # TODO: use EMA generator
+        pred = np.clip(pred, -1, 1)
+
+        fig = plt.figure(figsize=(4, 4))
+
+        for i in range(pred.shape[0]):
+            plt.subplot(4, 4, i+1)
+            plt.imshow(pred[i, :, :, :] / 2 + 0.5)
+            plt.axis('off')
+
+        plt.tight_layout()
+        plt.savefig(f"{self.save_path}/{self.idx}_scale_{self.scale}_epoch_{epoch + 1:02d}.png", dpi=250)
+        plt.close()
 
 
 def training_loop(config, idx, Model, data, latent_sample, fade=False):
@@ -16,14 +40,20 @@ def training_loop(config, idx, Model, data, latent_sample, fade=False):
     MODEL_SAVE_PATH = f"{config['SAVE_PATH']}models/{config['EXPT_NAME']}/"
     if not os.path.exists(IMG_SAVE_PATH): os.mkdir(MODEL_SAVE_PATH)
 
+    num_batches = config["DATASET_SIZE"] // config["MB_SIZE"][idx]
+
     if fade:
-        num_batches = config["DATASET_SIZE"] // config["MB_SIZE"][idx]
         num_iter = num_batches * EPOCHS
     else:
         num_iter = 0
-    
+  
     Model.fade_set(num_iter)
     Model.set_scale(idx, config["MB_SIZE"][idx])
+
+    # ExImageCallback = ExampleImages(IMG_SAVE_PATH, idx, SCALE)
+    # Model.fit(x=data, epochs=EPOCHS, steps_per_epoch=num_batches, callbacks=[ExImageCallback])
+
+    # return Model
 
     for epoch in range(EPOCHS):
 

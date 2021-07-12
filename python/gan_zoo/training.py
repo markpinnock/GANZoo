@@ -68,32 +68,36 @@ if CONFIG["EXPT"]["GRAPH"]:
     exit()
 
 # Set up dataset with minibatch size multiplied by number of critic training runs
-N = os.listdir(CONFIG["EXPT"]["DATA_PATH"])
+if CONFIG["EXPT"]["DATASET_SIZE"] == 0:
+    CONFIG["EXPT"]["DATASET_SIZE"] = len(os.listdir(CONFIG["EXPT"]["DATA_PATH"]))
+
 DataLoader = ImgLoader(CONFIG["EXPT"])
+res = CONFIG["EXPT"]["SCALES"][0]
 
 if CONFIG["EXPT"]["FROM_RAM"]:
     train_ds = tf.data.Dataset.from_tensor_slices(
-        DataLoader.data_loader(res=CONFIG["EXPT"]["SCALES"][0])
-        ).shuffle(N).batch(CONFIG["EXPT"]["MB_SIZE"][0] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(1)
+        DataLoader.data_loader(res=res)
+        ).shuffle(CONFIG["EXPT"]["DATASET_SIZE"]).batch(CONFIG["EXPT"]["MB_SIZE"][0] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(1)
 else:
     train_ds = tf.data.Dataset.from_generator(
         DataLoader.data_generator,
-        args=[CONFIG["EXPT"]["SCALES"][0]], output_types=tf.float32
-        ).batch(CONFIG["EXPT"]["MB_SIZE"][0] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(1)
+        args=[res], output_shapes=(res, res, 3), output_types=tf.float32
+        ).repeat().batch(CONFIG["EXPT"]["MB_SIZE"][0] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(1)
 
 Model = training_loop(CONFIG["EXPT"], idx=0, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)
 
 for i in range(1, len(CONFIG["EXPT"]["SCALES"])):
+    res = CONFIG["EXPT"]["SCALES"][i]
 
     if CONFIG["EXPT"]["FROM_RAM"]:
         train_ds = tf.data.Dataset.from_tensor_slices(
-            DataLoader.data_loader(res=CONFIG["EXPT"]["SCALES"][i])
-            ).shuffle(N).batch(CONFIG["EXPT"]["MB_SIZE"][i] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(1)
+            DataLoader.data_loader(res=res)
+            ).shuffle(CONFIG["EXPT"]["DATASET_SIZE"]).batch(CONFIG["EXPT"]["MB_SIZE"][i] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(1)
     else:
         train_ds = tf.data.Dataset.from_generator(
             DataLoader.data_generator,
-            args=[CONFIG["EXPT"]["SCALES"][i]], output_types=tf.float32
-            ).batch(CONFIG["EXPT"]["MB_SIZE"][i] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(1)
+            args=[res], output_shapes=(res, res, 3), output_types=tf.float32
+            ).repeat().batch(CONFIG["EXPT"]["MB_SIZE"][i] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(1)
 
     Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=True)
     Model = training_loop(CONFIG["EXPT"], idx=i, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)

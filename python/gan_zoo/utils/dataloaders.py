@@ -11,7 +11,7 @@ class ImgLoader:
         self.img_list = os.listdir(self.file_path)
         np.random.shuffle(self.img_list)
         if dataset_size: self.img_list = self.img_list[0:dataset_size]
-    
+
     def data_loader(self, res):
         imgs = []
 
@@ -23,7 +23,7 @@ class ImgLoader:
             img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
             img = (img * 2) - 1
             imgs.append(img)
-        
+
         return imgs
 
     def data_generator(self, res):

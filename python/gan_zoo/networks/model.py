@@ -32,6 +32,8 @@ class BaseGAN(tf.keras.Model, abc.ABC):
         self.Discriminator = None
 
     def compile(self, g_optimiser, d_optimiser, loss):
+        super().compile(run_eagerly=False)
+
         loss_dict = {
             "minmax": [minimax_D, minimax_G],
             "mod_minimax":[minimax_D, mod_minimax_G],
@@ -56,7 +58,7 @@ class BaseGAN(tf.keras.Model, abc.ABC):
         latent_noise = tf.random.normal((self.mb_size, self.latent_dims), dtype=tf.float32)
 
         with tf.GradientTape() as g_tape:
-            g_fake_images = self.Generator(latent_noise,  training=True)
+            g_fake_images = self.Generator(latent_noise, training=True)
 
             if self.Aug:
                 g_fake_images = self.Aug.augment(g_fake_images)
@@ -71,7 +73,7 @@ class BaseGAN(tf.keras.Model, abc.ABC):
     def discriminator_step(self, real_images):
         """ Discriminator training """
 
-        mb_size = real_images.shape[0] // self.n_critic
+        mb_size = tf.shape(real_images)[0] // self.n_critic
 
         # Critic training loop
         for idx in range(self.n_critic):

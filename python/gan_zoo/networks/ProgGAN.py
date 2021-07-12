@@ -1,8 +1,9 @@
 import numpy as np
 import tensorflow as tf
 
-from .blocks import GANDiscBlock, ProGenFirstBlock, ProGenLaterBlock
-from .sharedarchitecture.progressive import ProgressiveBase, ProgressiveGeneratorBase, ProgressiveDiscriminatorBase
+from .blocks.progganblocks import ProgGANGeneratorFirstBlock, ProGANGeneratorLaterBlock
+from .sharedarchitecture.progressiveblocks import ProgressiveDiscriminatorBlock
+from .sharedarchitecture.progressivemodel import ProgressiveBase, ProgressiveGeneratorBase, ProgressiveDiscriminatorBase
 
 
 class ProgressiveGAN(ProgressiveBase):
@@ -38,13 +39,13 @@ class ProgressiveGAN(ProgressiveBase):
 
         return {"d_loss": self.d_metric.result(), "g_loss": self.g_metric.result()}
     
-    def call(self, num_examples):
+    def call(self, num_examples: int = 0):
         if num_examples == 0:
             imgs = self.Generator(self.fixed_noise, training=False)
         
         else:
             latent_noise = tf.random.normal((num_examples, self.latent_dims), dtype=tf.float32)
-            imgs = self.Generator(self.fixed_noise, training=False)
+            imgs = self.Generator(latent_noise, training=False)
 
         return imgs
 
@@ -56,7 +57,7 @@ class ProgGANGenerator(ProgressiveGeneratorBase):
 
     def __init__(self, config, name="Generator"):
         super().__init__(config, name)
-        self.build_network(ProGenFirstBlock, ProGenLaterBlock, config)
+        self.build_network(ProgGANGeneratorFirstBlock, ProGANGeneratorLaterBlock, config)
 
     def call(self, z, training=True):
         _, rgb = self.blocks[self.scale](z, fade_alpha=self.alpha)
@@ -74,7 +75,7 @@ class ProgGANDiscriminator(ProgressiveDiscriminatorBase):
 
     def __init__(self, config, name="Discriminator"):
         super().__init__(config, name=name)
-        self.build_network(GANDiscBlock)
+        self.build_network(ProgressiveDiscriminatorBlock)
 
     def call(self, x, training=True):
         x = self.blocks[self.scale](x, self.alpha)
