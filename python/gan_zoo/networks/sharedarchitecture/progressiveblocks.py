@@ -82,10 +82,11 @@ class EqLrDense(tf.keras.layers.Dense):
         # Perform dense layer matmul (optional noise step for StyleGAN)
         outputs = gen_math_ops.MatMul(a=inputs, b=self.kernel * self.weight_scale * lr_mul)
         if noise: outputs = noise(outputs)
-        outputs = nn_ops.bias_add(outputs, self.bias * self.weight_scale * lr_mul)
-        
+        outputs = nn_ops.bias_add(outputs, self.bias * lr_mul)
+        """Bias scaled??? Check lr factor """
         # Activation not needed
         return outputs
+
 
 #-------------------------------------------------------------------------
 """ Overloaded implementation of Conv2D layer for equalised learning rate,
@@ -106,10 +107,11 @@ class EqLrConv2D(tf.keras.layers.Conv2D):
 
         # Perform convolution and add bias weights (optional noise step for StyleGAN)
         outputs = self._convolution_op(inputs, self.kernel * self.weight_scale)
-        outputs = tf.nn.bias_add(outputs, self.bias * self.weight_scale, data_format="NHWC")
+        outputs = tf.nn.bias_add(outputs, self.bias, data_format="NHWC")
 
         # Activation not needed
         return outputs
+
 
 #-------------------------------------------------------------------------
 """ Fade in from ProgGAN and StyleGAN
@@ -118,6 +120,7 @@ class EqLrConv2D(tf.keras.layers.Conv2D):
 def fade_in(alpha, old, new):
     with tf.name_scope("fade_in") as scope:
         return (1.0 - alpha) * old + alpha * new
+
 
 #-------------------------------------------------------------------------
 """ Minibatch standard deviation from ProgGAN and StyleGAN """

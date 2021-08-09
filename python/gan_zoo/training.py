@@ -34,7 +34,7 @@ with open(arguments.config_path, 'r') as infile:
 LATENT_SAMPLE = tf.random.normal([CONFIG["EXPT"]["NUM_EXAMPLES"], CONFIG["HYPERPARAMS"]["LATENT_DIM"]], dtype=tf.float32)
 
 # Create optimisers and compile model
-if CONFIG["HYPERPARAMS"]["MODEL"] in ["ProGAN", "StyleGAN"]:
+if CONFIG["HYPERPARAMS"]["MODEL"] in ["ProgGAN", "StyleGAN"]:
     Model = ProgressiveGAN(config=CONFIG["HYPERPARAMS"])
 
 if CONFIG["HYPERPARAMS"]["OPT"] == "Adam":
@@ -49,6 +49,7 @@ Model.compile(g_optimiser=g_opt, d_optimiser=d_opt, loss=CONFIG["HYPERPARAMS"]["
 
 # Print model summary and save graph if necessary
 if CONFIG["EXPT"]["VERBOSE"]:
+    Model.set_scale(len(CONFIG["EXPT"]["SCALES"]) - 1, 1)
     Model.summary()
 
 if CONFIG["EXPT"]["GRAPH"]:
@@ -58,10 +59,10 @@ if CONFIG["EXPT"]["GRAPH"]:
 
     @tf.function
     def trace(x):
-        return Model.Generator(x)
+        return Model.Discriminator(Model.Generator(x))
 
     tf.summary.trace_on(graph=True)
-    trace(tf.zeros((1, CONFIG["HYPERPARAMS"]["MAX_RES"], CONFIG["HYPERPARAMS"]["MAX_RES"], 3)))
+    trace(tf.zeros((1, CONFIG["HYPERPARAMS"]["LATENT_DIM"])))
 
     with writer.as_default():
         tf.summary.trace_export("graph", step=0)

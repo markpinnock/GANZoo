@@ -51,7 +51,7 @@ class BaseGAN(tf.keras.Model, abc.ABC):
         self.loss_fn = loss
 
         self.fixed_noise = tf.random.normal((self.config["NUM_EXAMPLES"], self.latent_dims), dtype=tf.float32)
-    
+
     def generator_step(self):
         """ Generator training """
 
@@ -111,12 +111,14 @@ class BaseGAN(tf.keras.Model, abc.ABC):
     def summary(self):
         # TODO: modify to work with different scales
         img_dims = [self.config["MAX_RES"], self.config["MAX_RES"], 3]
-        inputs = tf.keras.Input(shape=img_dims)
+        latent_dims = [self.config["LATENT_DIM"]]
+        inputs = tf.keras.Input(shape=latent_dims)
         outputs = self.Generator.call(inputs)
         print("===========================================================")
         print("Generator")
         print("===========================================================")
         tf.keras.Model(inputs=inputs, outputs=outputs).summary()
+
         inputs = tf.keras.Input(shape=img_dims)
         outputs = self.Discriminator.call(inputs)
         print("===========================================================")
