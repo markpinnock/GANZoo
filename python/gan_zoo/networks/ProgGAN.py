@@ -18,7 +18,7 @@ class ProgressiveGAN(ProgressiveBase):
         self.EMAGenerator = ProgGANGenerator(config=config, name="EMAGenerator")
         self.update_mvag_generator(initial=True)
 
-    # @tf.function
+    @tf.function
     def train_step(self, real_images):
 
         if self.fade_iter:

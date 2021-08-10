@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.ops import gen_math_ops, nn_ops
 
 
 #-------------------------------------------------------------------------
@@ -13,19 +12,19 @@ class ProgressiveDiscriminatorBlock(tf.keras.layers.Layer):
         initialiser = tf.keras.initializers.RandomNormal(0, 1)
 
         self.next_block = next_block
-        self.from_rgb = EqLrConv2D(filters=ch, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="from_rgb")
+        self.from_rgb = EqLrConv2D(gain=tf.sqrt(2.0), filters=ch, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="from_rgb")
 
         # If this is last discriminator block, collapse to prediction
         if next_block == None:
-            self.conv = EqLrConv2D(filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv")
+            self.conv = EqLrConv2D(gain=tf.sqrt(2.0), filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv")
             self.flat = tf.keras.layers.Flatten(name="flatten")
-            self.dense = EqLrDense(units=config["LATENT_DIM"], kernel_initializer=initialiser, name="dense")
-            self.out = EqLrDense(units=1, kernel_initializer=initialiser, name="out")
+            self.dense = EqLrDense(gain=tf.sqrt(2.0), units=config["LATENT_DIM"], kernel_initializer=initialiser, name="dense")
+            self.out = EqLrDense(gain=1.0, units=1, kernel_initializer=initialiser, name="out")
         
         # If next blocks exist, conv and downsample
         else:
-            self.conv1 = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv1")
-            self.conv2 = EqLrConv2D(filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv2")
+            self.conv1 = EqLrConv2D(gain=tf.sqrt(2.0), filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv1")
+            self.conv2 = EqLrConv2D(gain=tf.sqrt(2.0), filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv2")
             self.downsample = tf.keras.layers.AveragePooling2D(name="down2D")
 
     def call(self, x, fade_alpha=None, first_block=True):
@@ -57,7 +56,7 @@ class ProgressiveDiscriminatorBlock(tf.keras.layers.Layer):
             x = tf.nn.leaky_relu(self.conv(x), alpha=0.2)
             x = self.flat(x)
             x = tf.nn.leaky_relu(self.dense(x))
-            x = self.out(x, noise=None, gain=1) # Gain as in original implementation
+            x = self.out(x, noise=None)
 
         return x
 
@@ -68,24 +67,27 @@ class ProgressiveDiscriminatorBlock(tf.keras.layers.Layer):
 
 class EqLrDense(tf.keras.layers.Dense):
 
-    def __init__(self, **kwargs):
+    def __init__(self, gain=tf.sqrt(2.0), **kwargs):
         super().__init__(**kwargs)
-        self.weight_scale = None
+        self.gain = gain
     
-    def call(self, inputs, noise=None, gain=tf.sqrt(2.0), lr_mul=1.0):
+    def build(self, input_shape):
+        super().build(input_shape)
+        fan_in = tf.shape(self.kernel)[0]
+        self.wscale = self.gain / tf.sqrt(tf.cast(fan_in, tf.float32))
+    
+    def call(self, x, noise=None, lr_mul=1.0):
+
         """ Overloaded call to apply weight scale at runtime """
 
-        if self.weight_scale is None:
-            fan_in = tf.reduce_prod(tf.shape(self.kernel)[:-1])
-            self.weight_scale = gain / tf.sqrt(tf.cast(fan_in, tf.float32))
-
         # Perform dense layer matmul (optional noise step for StyleGAN)
-        outputs = gen_math_ops.MatMul(a=inputs, b=self.kernel * self.weight_scale * lr_mul)
-        if noise: outputs = noise(outputs)
-        outputs = nn_ops.bias_add(outputs, self.bias * lr_mul)
+        x = tf.matmul(x, self.kernel * self.wscale * lr_mul)
+        x = tf.add(x, self.bias * lr_mul)
+        if noise: outputs = noise(x)
+
         """Bias scaled??? Check lr factor """
-        # Activation not needed
-        return outputs
+
+        return x
 
 
 #-------------------------------------------------------------------------
@@ -94,23 +96,24 @@ class EqLrDense(tf.keras.layers.Dense):
 
 class EqLrConv2D(tf.keras.layers.Conv2D):
 
-    def __init__(self, **kwargs):
+    def __init__(self, gain=tf.sqrt(2.0), **kwargs):
         super().__init__(**kwargs)
-        self.weight_scale = None
+        self.gain = gain
+    
+    def build(self, input_shape):
+        super().build(input_shape)
+        fan_in = tf.reduce_prod(tf.shape(self.kernel)[:-1])
+        self.wscale = self.gain / tf.sqrt(tf.cast(fan_in, tf.float32))
         
-    def call(self, inputs, gain=tf.sqrt(2.0)):
+    def call(self, x):
+
         """ Overloaded call method applies weight scale at runtime """
 
-        if self.weight_scale is None: # TODO: implement in .build()
-            fan_in = tf.reduce_prod(tf.shape(self.kernel)[:-1])
-            self.weight_scale = gain / tf.sqrt(tf.cast(fan_in, tf.float32))
-
         # Perform convolution and add bias weights (optional noise step for StyleGAN)
-        outputs = self._convolution_op(inputs, self.kernel * self.weight_scale)
-        outputs = tf.nn.bias_add(outputs, self.bias, data_format="NHWC")
+        x = self._convolution_op(x, self.kernel * self.wscale)
+        x = tf.add(x, self.bias)
 
-        # Activation not needed
-        return outputs
+        return x
 
 
 #-------------------------------------------------------------------------

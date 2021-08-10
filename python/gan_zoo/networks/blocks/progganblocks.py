@@ -13,13 +13,14 @@ class ProgGANGeneratorFirstBlock(tf.keras.layers.Layer):
         initialiser = tf.keras.initializers.RandomNormal(0, 1)
 
         # Dense latent noise mapping and initial convolutional layers
-        self.dense = EqLrDense(units=res * res * config["LATENT_DIM"], kernel_initializer=initialiser, name="dense")
+        self.dense = EqLrDense(gain=tf.sqrt(2.0) / 4, units=res * res * config["LATENT_DIM"], kernel_initializer=initialiser, name="dense")
         self.reshape = tf.keras.layers.Reshape((res, res, config["LATENT_DIM"]))
-        self.conv = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv")
-        self.to_rgb = EqLrConv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="to_rgb")
+        self.conv = EqLrConv2D(gain=tf.sqrt(2.0), filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv")
+        self.to_rgb = EqLrConv2D(gain=tf.sqrt(2.0), filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="to_rgb")
 
     def call(self, z, fade_alpha=None):
-        x = self.dense(z, noise=None, gain=tf.sqrt(2.0) / 4) # As in original implementation
+        x = pixel_norm(z)
+        x = self.dense(x, noise=None)
         x = tf.nn.leaky_relu(x, alpha=0.2)
         x = pixel_norm(x)
         x = self.reshape(x)
@@ -45,9 +46,9 @@ class ProGANGeneratorLaterBlock(tf.keras.layers.Layer):
         
         # Up-sampling and convolutional layers
         self.upsample = tf.keras.layers.UpSampling2D(interpolation="bilinear", name="up2D")
-        self.conv1 = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv1")
-        self.conv2 = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv2")
-        self.to_rgb = EqLrConv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="to_rgb")
+        self.conv1 = EqLrConv2D(gain=tf.sqrt(2.0), filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv1")
+        self.conv2 = EqLrConv2D(gain=tf.sqrt(2.0), filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv2")
+        self.to_rgb = EqLrConv2D(gain=tf.sqrt(2.0), filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="to_rgb")
 
     def call(self, z, fade_alpha=None):
         
