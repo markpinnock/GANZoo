@@ -11,7 +11,6 @@ from utils.losses import (
     least_squares_G,
     wasserstein_D,
     wasserstein_G,
-    gradient_penalty
 )
 
 class BaseGAN(tf.keras.Model, abc.ABC):
@@ -94,9 +93,8 @@ class BaseGAN(tf.keras.Model, abc.ABC):
                 d_loss = self.d_loss(d_pred_real, d_pred_fake)
             
                 # Gradient penalty if indicated
-                if self.loss_fn == "wasserstein-GP": # TODO: make part of discriminator
-                    grad_penalty = gradient_penalty(d_real_batch, d_fake_images, self.Discriminator)
-                    d_loss += 10 * grad_penalty
+                if self.loss_fn == "wasserstein-GP":
+                    d_loss += self.Discriminator.apply_WGAN_GP(d_real_batch, d_fake_images)
             
             d_grads = d_tape.gradient(d_loss, self.Discriminator.trainable_variables)
             self.d_optimiser.apply_gradients(zip(d_grads, self.Discriminator.trainable_variables))

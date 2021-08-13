@@ -143,7 +143,7 @@ def mb_stddev(x, group_size=4):
 
 def pixel_norm(x):
     with tf.name_scope("pixel_norm") as scope:
-        x_sq = tf.reduce_mean(tf.square(x, name="square"), axis=-1, keepdims=True, name="mean")
-        x_norm = tf.sqrt(x_sq + 1e-8, name="sqrt")
+        x_sq = tf.reduce_mean(tf.square(x, name=f"{scope}_square"), axis=-1, keepdims=True, name=f"{scope}_mean")
+        x_norm = tf.sqrt(x_sq + 1e-8, name=f"{scope}_sqrt")
     
         return x / x_norm

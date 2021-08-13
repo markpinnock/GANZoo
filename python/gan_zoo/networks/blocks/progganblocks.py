@@ -24,7 +24,6 @@ class ProgGANGeneratorFirstBlock(tf.keras.layers.Layer):
         x = tf.nn.leaky_relu(x, alpha=0.2)
         x = pixel_norm(x)
         x = self.reshape(x)
-        """ Check pixel norm before dense !!! """
         x = self.conv(x)
         x = tf.nn.leaky_relu(x, alpha=0.2)
         x = pixel_norm(x)
