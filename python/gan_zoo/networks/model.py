@@ -1,9 +1,9 @@
 import abc
 import tensorflow as tf
 
-from utils.dataloaders import DiffAug
+from gan_zoo.utils.dataloaders import DiffAug
 
-from utils.losses import (
+from gan_zoo.utils.losses import (
     minimax_D,
     minimax_G,
     mod_minimax_G,

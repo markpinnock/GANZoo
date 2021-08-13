@@ -1,16 +1,14 @@
-import abc
 import numpy as np
 import tensorflow as tf
 
-from utils.losses import gradient_penalty
-from .model import BaseGAN
-from .blocks.progganblocks import ProgGANGeneratorFirstBlock, ProGANGeneratorLaterBlock
-from .sharedarchitecture.progressiveblocks import ProgressiveDiscriminatorBlock
+from gan_zoo.networks.stylegan.blocks import GeneratorFirstBlock, GeneratorLaterBlock, DiscriminatorBlock, MappingNet
+from gan_zoo.networks.model import BaseGAN
+from gan_zoo.utils.utils.losses import gradient_penalty
 
 
 #-------------------------------------------------------------------------
 
-class ProgressiveGAN(BaseGAN):
+class StyleGAN(BaseGAN):
 
     def __init__(self, config):
         super().__init__(config)
@@ -27,7 +25,7 @@ class ProgressiveGAN(BaseGAN):
         self.fade_count = 0
         self.mb_size = None
         self.alpha = None
-
+    
     def fade_set(self, num_iter):
         """ Activates or deactivates fade in """
 
@@ -99,19 +97,19 @@ class ProgressiveGAN(BaseGAN):
 
         return {"d_loss": self.d_metric.result(), "g_loss": self.g_metric.result()}
     
-    def call(self, num_examples: int = 0):
+    def call(self, num_examples: int = None, training: bool = False):
         if num_examples == 0:
-            imgs = self.Generator(self.fixed_noise, training=False)
+            imgs = self.Generator(self.fixed_noise, training=training)
         
         else:
             latent_noise = tf.random.normal((num_examples, self.latent_dims), dtype=tf.float32)
-            imgs = self.Generator(latent_noise, training=False)
+            imgs = self.Generator(latent_noise, training=training)
 
         return imgs
 
 
 #-------------------------------------------------------------------------
-""" Generator class for ProgressiveGAN """
+""" Generator class for StyleGAN """
 
 class Generator(tf.keras.layers.Layer):
 
@@ -127,7 +125,8 @@ class Generator(tf.keras.layers.Layer):
         self.output_activation = config["G_OUT"]
         assert self.output_activation in ["tanh", "linear"], "Choose tanh or linear output"
 
-        self.build_network(ProgGANGeneratorFirstBlock, ProGANGeneratorLaterBlock, config)
+        self.StyleMap = None
+        self.build_network(GeneratorFirstBlock, GeneratorLaterBlock, config)
 
     def build_network(self, FirstBlock, LaterBlock, config):
         self.blocks = []
@@ -149,8 +148,12 @@ class Generator(tf.keras.layers.Layer):
             test = tf.zeros((2, self.latent_dims), dtype=tf.float32)
             assert self.blocks[i](test, fade_alpha=0.5)[1].shape == (2, self.config["START_RES"] * (2 ** i), self.config["START_RES"] * (2 ** i), 3), self.blocks[i](test, fade_alpha=0.5)[1].shape
 
-    def call(self, z, training=True):
-        _, rgb = self.blocks[self.scale](z, fade_alpha=self.alpha)
+        self.StyleMap = MappingNet(config["STYLE_MAP_UNITS"], config["LATENT_DIM"], config["STYLE_MAP_LAYERS"], name="StyleMapping")
+        _ = self.StyleMap(tf.zeros((2, self.latent_dims))) # Build implicitly until build method defined
+
+    def call(self, z, scale, training=True):
+        w = self.StyleMap(z)
+        _, rgb = self.blocks[scale](w, fade_alpha=self.alpha)
 
         if self.output_activation == "tanh":
             return tf.nn.tanh(rgb)
@@ -159,19 +162,19 @@ class Generator(tf.keras.layers.Layer):
 
 
 #-------------------------------------------------------------------------
-""" Discriminator class for Progressive GAN """
+""" Discriminator class for StyleGAN """
 
 class Discriminator(tf.keras.layers.Layer):
 
-    def __init__(self, config, name="Discriminator"):
-        super().__init__(config, name=name)
+    def __init__(self, config, name=None):
+        super().__init__(config, name="Discriminator")
         self.config = config
         self.alpha = None
         self.scale = None
         self.num_layers = int(np.log2(config["MAX_RES"])) - int(np.log2(config["START_RES"])) + 1
         self.resolutions = [self.config["START_RES"] * 2 ** idx for idx in range(self.num_layers)]
 
-        self.build_network(ProgressiveDiscriminatorBlock)
+        self.build_network(DiscriminatorBlock)
 
     def build_network(self, GANDiscBlock):
         self.blocks = []
@@ -192,10 +195,19 @@ class Discriminator(tf.keras.layers.Layer):
         for i in range(self.num_layers):
             test = tf.zeros((2, self.config["START_RES"] * (2 ** i), self.config["START_RES"] * (2 ** i), 3), dtype=tf.float32)
             assert self.blocks[i](test, fade_alpha=0.5).shape == (2, 1), self.blocks[i](test, fade_alpha=0.5).shape
-    
+
     def apply_WGAN_GP(self, real_img, fake_img):
         drift_term = tf.reduce_mean(tf.square(self(real_img)))
-        grad_penalty = gradient_penalty(real_img, fake_img, self)
+
+        epsilon = tf.random.uniform([fake_img.shape[0], 1, 1, 1], 0.0, 1.0)
+        x_hat = epsilon * real_img + (1 - epsilon) * fake_img
+
+        with tf.GradientTape() as tape:
+            tape.watch(x_hat)
+            D_hat = self(x_hat, training=True)
+        
+        gradients = tape.gradient(D_hat, x_hat)
+        grad_penalty = gradient_penalty(gradients)
 
         return 10 * grad_penalty + 0.001 * drift_term
 

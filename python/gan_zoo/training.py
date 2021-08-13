@@ -1,26 +1,14 @@
 import argparse
 import datetime
 import json
-import matplotlib.pyplot as plt
 import numpy as np
 import os
-import sys
 import tensorflow as tf
 
-from training_loops import training_loop
-from networks.ProgGAN import ProgressiveGAN
-from utils.dataloaders import ImgLoader, DiffAug
+from gan_zoo.training_loops import training_loop
+from gan_zoo.networks.progressivegan.ProgGAN import ProgressiveGAN
+from gan_zoo.utils.dataloaders import ImgLoader
 
-
-""" Based on:
-    - Karras et al. Progressive Growing of GANs for Improved Quality, Stability, and Variation
-    - https://arxiv.org/abs/1710.10196 """
-
-# TODO: MS-SSIM
-# TODO: data aug prob
-# TODO: truncation trick
-# TODO: blurring
-# TODO: style mixing
 
 # Handle arguments
 parser = argparse.ArgumentParser()

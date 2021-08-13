@@ -3,65 +3,6 @@ import tensorflow as tf
 
 
 #-------------------------------------------------------------------------
-""" Progressive and StyleGAN Discriminator block """
-# TODO: separate into last and prev blocks
-class ProgressiveDiscriminatorBlock(tf.keras.layers.Layer):
-    def __init__(self, ch, next_block, config, name=None):
-        super().__init__(name=name)
-        double_ch = np.min([ch * 2, config["MAX_CHANNELS"]])
-        initialiser = tf.keras.initializers.RandomNormal(0, 1)
-
-        self.next_block = next_block
-        self.from_rgb = EqLrConv2D(gain=tf.sqrt(2.0), filters=ch, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="from_rgb")
-
-        # If this is last discriminator block, collapse to prediction
-        if next_block == None:
-            self.conv = EqLrConv2D(gain=tf.sqrt(2.0), filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv")
-            self.flat = tf.keras.layers.Flatten(name="flatten")
-            self.dense = EqLrDense(gain=tf.sqrt(2.0), units=config["LATENT_DIM"], kernel_initializer=initialiser, name="dense")
-            self.out = EqLrDense(gain=1.0, units=1, kernel_initializer=initialiser, name="out")
-        
-        # If next blocks exist, conv and downsample
-        else:
-            self.conv1 = EqLrConv2D(gain=tf.sqrt(2.0), filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv1")
-            self.conv2 = EqLrConv2D(gain=tf.sqrt(2.0), filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv2")
-            self.downsample = tf.keras.layers.AveragePooling2D(name="down2D")
-
-    def call(self, x, fade_alpha=None, first_block=True):
-
-        # If fade in, pass downsampled image into next block and cache
-        if first_block and fade_alpha != None and self.next_block != None:
-            next_rgb = self.downsample(x)
-            next_rgb = tf.nn.leaky_relu(self.next_block.from_rgb(next_rgb), alpha=0.2)
-
-        # If the very first block, perform 1x1 conv on rgb
-        if first_block:
-            x = tf.nn.leaky_relu(self.from_rgb(x), alpha=0.2)
-
-        # If this is not the last block
-        if self.next_block != None:
-            x = tf.nn.leaky_relu(self.conv1(x), alpha=0.2)
-            x = tf.nn.leaky_relu(self.conv2(x), alpha=0.2)
-            x = self.downsample(x)
-
-            # If fade in, merge with cached layer
-            if first_block and fade_alpha != None and self.next_block != None:
-                x = fade_in(fade_alpha, next_rgb, x)
-            
-            x = self.next_block(x, fade_alpha=None, first_block=False)
-        
-        # If this is the last block
-        else:
-            x = mb_stddev(x)
-            x = tf.nn.leaky_relu(self.conv(x), alpha=0.2)
-            x = self.flat(x)
-            x = tf.nn.leaky_relu(self.dense(x))
-            x = self.out(x, noise=None)
-
-        return x
-
-
-#-------------------------------------------------------------------------
 """ Overloaded implementation of Dense layer for equalised learning rate,
     taken from https://github.com/tensorflow/tensorflow/blob/v2.3.1/tensorflow/python/keras/layers/core.py """
 
@@ -138,6 +79,7 @@ def mb_stddev(x, group_size=4):
     
         return tf.concat([x, y], axis=-1, name=scope)
 
+
 #-------------------------------------------------------------------------
 """ Pixel normalisation from ProgGAN and StyleGAN mapping network """
 
@@ -147,3 +89,55 @@ def pixel_norm(x):
         x_norm = tf.sqrt(x_sq + 1e-8, name=f"{scope}_sqrt")
     
         return x / x_norm
+
+
+#-------------------------------------------------------------------------
+""" Instance normalisation from StyleGAN """
+
+def instance_norm(x):
+    with tf.name_scope("instance_norm") as scope:
+        x_mu = tf.reduce_mean(x, axis=[1, 2], keepdims=True, name="mean")
+        x_sig = tf.math.reduce_std(x, axis=[1, 2], keepdims=True)
+        x = (x - x_mu) / (x_sig + 1e-8)
+
+        return x
+
+#-------------------------------------------------------------------------
+""" Style modulation layer from StyleGAN - maps latent W to
+    affine transforms for each generator block """
+
+class StyleModulation(tf.keras.layers.Layer):
+    def __init__(self, nf, name=None):
+        super().__init__(name=name)
+        self.nf = nf
+        self.dense = EqLrDense(units=nf * 2, kernel_initializer=keras.initializers.RandomNormal(0, 1), name="dense")
+    
+    def call(self, x, w):
+        """ x: feature maps from conv stack, w: latent vector """
+
+        w = self.dense(w, gain=1.0)
+        w = tf.reshape(w, [-1, 2, 1, 1, self.nf])
+
+        # Style components
+        ys = w[:, 0, :, :, :] + 1 # I.e. initialise bias to 1
+        yb = w[:, 1, :, :, :]
+
+        return x * ys + yb
+
+#-------------------------------------------------------------------------
+""" Additive noise layer from StyleGAN """
+
+class AdditiveNoise(tf.keras.layers.Layer):
+
+    """ nf: number of feature maps in corresponding generator block """
+
+    def __init__(self, nf, name=None):
+        super().__init__(name=name)
+        self.nf = nf
+        self.noise_weight = self.add_weight(name=f"{self.name}/noise_weight", shape=[1, 1, 1, nf], initializer="zeros", trainable=True)
+    
+    def call(self, x):
+        NHW = x.shape[0:3]
+        noise = tf.random.normal(NHW + [1])
+
+        return x + self.noise_weight * noise

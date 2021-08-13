@@ -22,6 +22,7 @@ def mod_minimax_G(fake_output):
     fake_loss = tf.keras.losses.binary_crossentropy(tf.ones_like(fake_output), fake_output, from_logits=True)
     return fake_loss
 
+
 #-------------------------------------------------------------------------
 """ Least squares loss
     Mao et al. Least squares generative adversarial networks
@@ -39,6 +40,7 @@ def least_squares_G(fake_output):
     fake_loss = 0.5 * tf.reduce_mean(tf.square(fake_output - 1))
     return fake_loss
 
+
 #-------------------------------------------------------------------------
 """ Wasserstein loss
     Arjovsky et al. Wasserstein generative adversarial networks.
@@ -52,6 +54,7 @@ def wasserstein_D(real_output, fake_output):
 @tf.function
 def wasserstein_G(fake_output):
     return tf.reduce_mean(-fake_output)
+
 
 class WeightClipConstraint(tf.keras.constraints.Constraint):
 
@@ -67,38 +70,15 @@ class WeightClipConstraint(tf.keras.constraints.Constraint):
     def get_config(self):
         return {"clip_value": self.clip_val}
 
+
 #-------------------------------------------------------------------------
 """ Wasserstein loss gradient penalty
     Gulrajani et al. Improved training of Wasserstein GANs. NeurIPS, 2017
     https://arxiv.org/abs/1704.00028 """
 
 @tf.function
-def gradient_penalty(real_img, fake_img, D):
-    epsilon = tf.random.uniform([fake_img.shape[0], 1, 1, 1], 0.0, 1.0)
-    x_hat = (epsilon * real_img) + ((1 - epsilon) * fake_img)
-
-    with tf.GradientTape() as tape:
-        tape.watch(x_hat)
-        D_hat = D(x_hat, training=True)
-    
-    gradients = tape.gradient(D_hat, x_hat)
-    grad_norm = tf.sqrt(tf.reduce_sum(tf.square(gradients), axis=(1, 2)) + 1e-8)
+def gradient_penalty(gradients):
+    grad_norm = tf.sqrt(tf.reduce_sum(tf.square(gradients), axis=[1, 2, 3]) + 1e-8)
     grad_penalty = tf.reduce_mean(tf.square(grad_norm - 1))
 
     return grad_penalty
-
-@tf.function
-def gradient_penalty_scale(real_img, fake_img, D, scale):
-    epsilon = tf.random.uniform([fake_img.shape[0], 1, 1, 1], 0.0, 1.0)
-    x_hat = (epsilon * real_img) + ((1 - epsilon) * fake_img)
-
-    with tf.GradientTape() as tape:
-        tape.watch(x_hat)
-        D_hat = D(x_hat, scale, training=True)
-    
-    gradients = tape.gradient(D_hat, x_hat)
-    grad_norm = tf.sqrt(tf.reduce_sum(tf.square(gradients), axis=(1, 2)) + 1e-8)
-    grad_penalty = tf.reduce_mean(tf.square(grad_norm - 1))
-
-    return grad_penalty
-
