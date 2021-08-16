@@ -13,15 +13,16 @@ class MappingNet(tf.keras.layers.Layer):
         super().__init__(name=name)
         self.lr_mul = 0.01
         std_init = 1 / self.lr_mul
+        gain = tf.sqrt(2.0)
 
-        self.dense = [EqLrDense(units=num_units, kernel_initializer=tf.keras.initializers.RandomNormal(0, std_init), name=f"dense_{i}") for i in range(num_layers - 1)]
-        self.dense.append(EqLrDense(units=latent_dim, kernel_initializer=tf.keras.initializers.RandomNormal(0, std_init), name=f"dense_{num_layers - 1}"))
+        self.dense = [EqLrDense(gain=gain, lr_mul=self.lr_mul, units=num_units, kernel_initializer=tf.keras.initializers.RandomNormal(0, std_init), name=f"dense_{i}") for i in range(num_layers - 1)]
+        self.dense.append(EqLrDense(gain=gain, lr_mul=self.lr_mul, units=latent_dim, kernel_initializer=tf.keras.initializers.RandomNormal(0, std_init), name=f"dense_{num_layers - 1}"))
 
     def call(self, z):
         w = pixel_norm(z)
 
         for layer in self.dense:
-            w = tf.nn.leaky_relu(layer(w, noise=None, gain=tf.sqrt(2.0), lr_mul=self.lr_mul))
+            w = tf.nn.leaky_relu(layer(w))
 
         return w
 
@@ -39,7 +40,7 @@ class DiscriminatorBlock(tf.keras.layers.Layer):
         self.from_rgb = EqLrConv2D(gain=tf.sqrt(2.0), filters=ch, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="from_rgb")
 
         # If this is last discriminator block, collapse to prediction
-        if next_block == None:
+        if next_block is None:
             self.conv = EqLrConv2D(gain=tf.sqrt(2.0), filters=double_ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv")
             self.flat = tf.keras.layers.Flatten(name="flatten")
             self.dense = EqLrDense(gain=tf.sqrt(2.0), units=config["LATENT_DIM"], kernel_initializer=initialiser, name="dense")
@@ -63,7 +64,7 @@ class DiscriminatorBlock(tf.keras.layers.Layer):
             x = tf.nn.leaky_relu(self.from_rgb(x), alpha=0.2)
 
         # If this is not the last block
-        if self.next_block != None:
+        if self.next_block is not None:
             x = tf.nn.leaky_relu(self.conv1(x), alpha=0.2)
             x = tf.nn.leaky_relu(self.conv2(x), alpha=0.2)
             x = self.downsample(x)
@@ -80,7 +81,7 @@ class DiscriminatorBlock(tf.keras.layers.Layer):
             x = tf.nn.leaky_relu(self.conv(x), alpha=0.2)
             x = self.flat(x)
             x = tf.nn.leaky_relu(self.dense(x))
-            x = self.out(x, noise=None)
+            x = self.out(x)
 
         return x
 
@@ -100,7 +101,7 @@ class GeneratorLaterBlock(tf.keras.layers.Layer):
         self.upsample = tf.keras.layers.UpSampling2D(interpolation="bilinear", name="up2D")
         self.conv1 = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv1")
         self.conv2 = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv2")
-        self.to_rgb = EqLrConv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="to_rgb")
+        self.to_rgb = EqLrConv2D(gain=1.0, filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="to_rgb")
 
         # Additive noise inputs
         if config["ADD_NOISE"]:
@@ -123,13 +124,13 @@ class GeneratorLaterBlock(tf.keras.layers.Layer):
 
         # Up-sample and perform convolution on non-RGB, with AdaIN and additive noise if indicated
         x = self.conv1(prev_x)
-        if self.conv1_noise: x = self.conv1_noise(x)
+        if self.conv1_noise is not None: x = self.conv1_noise(x)
         x = tf.nn.leaky_relu(x, alpha=0.2)
         x = instance_norm(x)
         x = self.conv1_style(x, w)
     
         x = self.conv2(x)
-        if self.conv2_noise: x = self.conv2_noise(x)
+        if self.conv2_noise is not None: x = self.conv2_noise(x)
         x = tf.nn.leaky_relu(x, alpha=0.2)
         x = instance_norm(x)
         x = self.conv2_style(x, w)
@@ -137,7 +138,7 @@ class GeneratorLaterBlock(tf.keras.layers.Layer):
         rgb = self.to_rgb(x)
 
         # If fade in, merge previous block's RGB and this block's RGB
-        if fade_alpha != None:
+        if fade_alpha is not None:
             prev_rgb = self.upsample(prev_rgb)
             rgb = fade_in(fade_alpha, prev_rgb, rgb)
         
@@ -155,7 +156,7 @@ class GeneratorFirstBlock(tf.keras.layers.Layer):
         # Constant input and convolutional layers
         self.constant = self.add_weight(name="constant", shape=[1, res, res, config["LATENT_DIM"]], initializer="ones", trainable=True)
         self.conv = EqLrConv2D(filters=ch, kernel_size=(3, 3), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="conv")
-        self.to_rgb = EqLrConv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="to_rgb")
+        self.to_rgb = EqLrConv2D(gain=1.0, filters=3, kernel_size=(1, 1), strides=(1, 1), padding="SAME", kernel_initializer=initialiser, name="to_rgb")
 
         # Additive noise inputs
         if config["ADD_NOISE"]:
@@ -172,12 +173,12 @@ class GeneratorFirstBlock(tf.keras.layers.Layer):
 
     def call(self, w, fade_alpha=None):
         x = self.constant
-        if self.constant_noise: x = self.constant_noise(x)
+        if self.constant_noise is not None: x = self.constant_noise(x)
         x = tf.nn.leaky_relu(x, alpha=0.2)
         x = instance_norm(x)
         x = self.constant_style(x, w)
         
-        if self.conv_noise: x = self.conv_noise(self.conv(x))
+        if self.conv_noise is not None: x = self.conv_noise(self.conv(x))
         x = tf.nn.leaky_relu(x, alpha=0.2)
         x = instance_norm(x)
         x = self.conv_style(x, w)

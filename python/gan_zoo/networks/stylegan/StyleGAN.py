@@ -1,9 +1,9 @@
 import numpy as np
 import tensorflow as tf
 
-from gan_zoo.networks.stylegan.blocks import GeneratorFirstBlock, GeneratorLaterBlock, DiscriminatorBlock, MappingNet
-from gan_zoo.networks.model import BaseGAN
-from gan_zoo.utils.utils.losses import gradient_penalty
+from networks.stylegan.blocks import GeneratorFirstBlock, GeneratorLaterBlock, DiscriminatorBlock, MappingNet
+from networks.model import BaseGAN
+from utils.losses import gradient_penalty
 
 
 #-------------------------------------------------------------------------
@@ -97,13 +97,13 @@ class StyleGAN(BaseGAN):
 
         return {"d_loss": self.d_metric.result(), "g_loss": self.g_metric.result()}
     
-    def call(self, num_examples: int = None, training: bool = False):
+    def call(self, num_examples: int = 0):
         if num_examples == 0:
-            imgs = self.Generator(self.fixed_noise, training=training)
+            imgs = self.Generator(self.fixed_noise, training=False)
         
         else:
             latent_noise = tf.random.normal((num_examples, self.latent_dims), dtype=tf.float32)
-            imgs = self.Generator(latent_noise, training=training)
+            imgs = self.Generator(latent_noise, training=False)
 
         return imgs
 
@@ -151,9 +151,9 @@ class Generator(tf.keras.layers.Layer):
         self.StyleMap = MappingNet(config["STYLE_MAP_UNITS"], config["LATENT_DIM"], config["STYLE_MAP_LAYERS"], name="StyleMapping")
         _ = self.StyleMap(tf.zeros((2, self.latent_dims))) # Build implicitly until build method defined
 
-    def call(self, z, scale, training=True):
+    def call(self, z, training=True):
         w = self.StyleMap(z)
-        _, rgb = self.blocks[scale](w, fade_alpha=self.alpha)
+        _, rgb = self.blocks[self.scale](w, fade_alpha=self.alpha)
 
         if self.output_activation == "tanh":
             return tf.nn.tanh(rgb)

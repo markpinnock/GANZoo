@@ -71,7 +71,7 @@ def mb_stddev(x, group_size=4):
         y = tf.reshape(x, [group_size, -1, dims[1], dims[2], dims[3]])
         y = tf.reduce_mean(tf.math.reduce_std(y, axis=0), axis=[1, 2, 3], keepdims=True)
         y = tf.tile(y, [group_size, dims[1], dims[2], 1])
-    
+        """ Check average over channels """
         return tf.concat([x, y], axis=-1, name=scope)
 
 

@@ -8,25 +8,23 @@ import tensorflow as tf
 
 class EqLrDense(tf.keras.layers.Dense):
 
-    def __init__(self, gain=tf.sqrt(2.0), **kwargs):
+    def __init__(self, gain=tf.sqrt(2.0), lr_mul=1.0, **kwargs):
         super().__init__(**kwargs)
         self.gain = gain
+        self.lr_mul = lr_mul
     
     def build(self, input_shape):
         super().build(input_shape)
         fan_in = tf.shape(self.kernel)[0]
         self.wscale = self.gain / tf.sqrt(tf.cast(fan_in, tf.float32))
-    
-    def call(self, x, noise=None, lr_mul=1.0):
+        """" CHECK INIT """
+    def call(self, x):
 
         """ Overloaded call to apply weight scale at runtime """
 
-        # Perform dense layer matmul (optional noise step for StyleGAN)
-        x = tf.matmul(x, self.kernel * self.wscale * lr_mul)
-        x = tf.add(x, self.bias * lr_mul)
-        if noise: outputs = noise(x)
-
-        """Bias scaled??? Check lr factor """
+        # Perform dense layer matmul and add noise
+        x = tf.matmul(x, self.kernel * self.wscale * self.lr_mul)
+        x = tf.add(x, self.bias * self.lr_mul)
 
         return x
 
@@ -75,6 +73,7 @@ def mb_stddev(x, group_size=4):
         group_size = tf.reduce_min([group_size, dims[0]])
         y = tf.reshape(x, [group_size, -1, dims[1], dims[2], dims[3]])
         y = tf.reduce_mean(tf.math.reduce_std(y, axis=0), axis=[1, 2, 3], keepdims=True)
+        """ Check average over channels """
         y = tf.tile(y, [group_size, dims[1], dims[2], 1])
     
         return tf.concat([x, y], axis=-1, name=scope)
@@ -110,12 +109,12 @@ class StyleModulation(tf.keras.layers.Layer):
     def __init__(self, nf, name=None):
         super().__init__(name=name)
         self.nf = nf
-        self.dense = EqLrDense(units=nf * 2, kernel_initializer=keras.initializers.RandomNormal(0, 1), name="dense")
-    
+        self.dense = EqLrDense(gain=1.0, units=nf * 2, kernel_initializer=tf.keras.initializers.RandomNormal(0, 1), name="dense")
+
     def call(self, x, w):
         """ x: feature maps from conv stack, w: latent vector """
 
-        w = self.dense(w, gain=1.0)
+        w = self.dense(w)
         w = tf.reshape(w, [-1, 2, 1, 1, self.nf])
 
         # Style components

@@ -1,9 +1,9 @@
 import numpy as np
 import tensorflow as tf
 
-from gan_zoo.networks.progressivegan.blocks import GeneratorFirstBlock, GeneratorLaterBlock, DiscriminatorBlock
-from gan_zoo.networks.model import BaseGAN
-from gan_zoo.utils.losses import gradient_penalty
+from networks.progressivegan.blocks import GeneratorFirstBlock, GeneratorLaterBlock, DiscriminatorBlock
+from networks.model import BaseGAN
+from utils.losses import gradient_penalty
 
 
 """ Based on:
