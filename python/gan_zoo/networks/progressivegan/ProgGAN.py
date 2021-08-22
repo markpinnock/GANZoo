@@ -8,13 +8,9 @@ from utils.losses import gradient_penalty
 
 """ Based on:
     - Karras et al. Progressive Growing of GANs for Improved Quality, Stability, and Variation
-    - https://arxiv.org/abs/1710.10196 """
+    - https://arxiv.org/abs/1710.10196
+    - https://github.com/tkarras/progressive_growing_of_gans """
 
-# TODO: MS-SSIM
-# TODO: data aug prob
-# TODO: truncation trick
-# TODO: blurring
-# TODO: style mixing
 
 #-------------------------------------------------------------------------
 
@@ -50,9 +46,6 @@ class ProgressiveGAN(BaseGAN):
         self.Generator.scale = scale
         self.EMAGenerator.scale = scale
         self.Discriminator.scale = scale
-        self.Generator.mb_size = mb_size
-        self.EMAGenerator.mb_size = mb_size
-        self.Discriminator.mb_size = mb_size
         self.mb_size = mb_size
 
         self.Discriminator.blocks[scale].trainable = True
@@ -84,6 +77,7 @@ class ProgressiveGAN(BaseGAN):
             
         else:
             for idx in range(len(self.EMAGenerator.trainable_weights)):
+                assert self.EMAGenerator.trainable_weights[idx].name == self.Generator.trainable_weights[idx].name
                 new_weights = self.EMA_beta * self.EMAGenerator.trainable_weights[idx] + (1 - self.EMA_beta) * self.Generator.trainable_weights[idx]
                 self.EMAGenerator.trainable_weights[idx].assign(new_weights)
 
@@ -97,7 +91,6 @@ class ProgressiveGAN(BaseGAN):
             self.Discriminator.alpha = None
             self.Generator.alpha = None
 
-        #TODO set scales
         self.discriminator_step(real_images)
         self.generator_step()
 
@@ -109,11 +102,11 @@ class ProgressiveGAN(BaseGAN):
     
     def call(self, num_examples: int = 0):
         if num_examples == 0:
-            imgs = self.Generator(self.fixed_noise, training=False)
+            imgs = self.EMAGenerator(self.fixed_noise, training=False)
         
         else:
             latent_noise = tf.random.normal((num_examples, self.latent_dims), dtype=tf.float32)
-            imgs = self.Generator(latent_noise, training=False)
+            imgs = self.EMAGenerator(latent_noise, training=False)
 
         return imgs
 
@@ -202,6 +195,7 @@ class Discriminator(tf.keras.layers.Layer):
             assert self.blocks[i](test, fade_alpha=0.5).shape == (2, 1), self.blocks[i](test, fade_alpha=0.5).shape
     
     def apply_WGAN_GP(self, real_img, fake_img):
+        # Prevent discriminator output from drifting too far from zero
         drift_term = tf.reduce_mean(tf.square(self(real_img)))
 
         epsilon = tf.random.uniform([fake_img.shape[0], 1, 1, 1], 0.0, 1.0)

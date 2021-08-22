@@ -6,6 +6,17 @@ from networks.model import BaseGAN
 from utils.losses import gradient_penalty
 
 
+""" Based on:
+    - Karras et al. A Style-Based Generator Architecture for Generative Adversarial Networks
+    - https://arxiv.org/abs/1812.04948
+    - https://github.com/NVlabs/stylegan """
+
+# TODO: MS-SSIM
+# TODO: data aug prob
+# TODO: truncation trick
+# TODO: blurring
+# TODO: style mixing
+
 #-------------------------------------------------------------------------
 
 class StyleGAN(BaseGAN):
@@ -21,6 +32,7 @@ class StyleGAN(BaseGAN):
         self.update_mvag_generator(initial=True)
 
         self.EMA_beta = config["EMA_BETA"]
+        self.EMA_map_beta = config["EMA_MAP_BETA"]
         self.fade_iter = 0
         self.fade_count = 0
         self.mb_size = None
@@ -40,9 +52,6 @@ class StyleGAN(BaseGAN):
         self.Generator.scale = scale
         self.EMAGenerator.scale = scale
         self.Discriminator.scale = scale
-        self.Generator.mb_size = mb_size
-        self.EMAGenerator.mb_size = mb_size
-        self.Discriminator.mb_size = mb_size
         self.mb_size = mb_size
 
         self.Discriminator.blocks[scale].trainable = True
@@ -71,11 +80,18 @@ class StyleGAN(BaseGAN):
             for idx in range(len(self.EMAGenerator.weights)):
                 assert self.EMAGenerator.weights[idx].name == self.Generator.weights[idx].name
                 self.EMAGenerator.weights[idx].assign(self.Generator.weights[idx])
-            
+
         else:
             for idx in range(len(self.EMAGenerator.trainable_weights)):
-                new_weights = self.EMA_beta * self.EMAGenerator.trainable_weights[idx] + (1 - self.EMA_beta) * self.Generator.trainable_weights[idx]
-                self.EMAGenerator.trainable_weights[idx].assign(new_weights)
+                assert self.EMAGenerator.trainable_weights[idx].name == self.Generator.trainable_weights[idx].name
+
+                if "StyleMapping" in self.EMAGenerator.trainable_weights[idx].name:
+                    new_weights = self.EMA_beta * self.EMAGenerator.trainable_weights[idx] + (1 - self.EMA_map_beta) * self.Generator.trainable_weights[idx]
+                    self.EMAGenerator.trainable_weights[idx].assign(new_weights)
+
+                else:
+                    new_weights = self.EMA_beta * self.EMAGenerator.trainable_weights[idx] + (1 - self.EMA_beta) * self.Generator.trainable_weights[idx]
+                    self.EMAGenerator.trainable_weights[idx].assign(new_weights)
 
     def train_step(self, real_images):
 

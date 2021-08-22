@@ -3,8 +3,9 @@ import tensorflow as tf
 
 
 #-------------------------------------------------------------------------
-""" Overloaded implementation of Dense layer for equalised learning rate,
-    taken from https://github.com/tensorflow/tensorflow/blob/v2.3.1/tensorflow/python/keras/layers/core.py """
+""" Overloaded implementation of Dense layer for equalised learning rate
+    by initialising with N(0, 1) and scale weights at run-time instead of
+    using He initialiser - prevents escalating signal magnitudes """
 
 class EqLrDense(tf.keras.layers.Dense):
 
@@ -13,23 +14,25 @@ class EqLrDense(tf.keras.layers.Dense):
         self.gain = gain
     
     def build(self, input_shape):
+        # Call layer's native build method to initialise weights
         super().build(input_shape)
         fan_in = tf.shape(self.kernel)[0]
-        self.wscale = self.gain / tf.sqrt(tf.cast(fan_in, tf.float32))
+
+        # Std dev multiplier from He initialiser
+        self.wscale = self.gain / tf.sqrt(tf.cast(fan_in, "float32"))
     
-    def call(self, x, lr_mul=1.0):
-
-        """ Overloaded call to apply weight scale at runtime """
-
-        x = tf.matmul(x, self.kernel * self.wscale * lr_mul)
+    def call(self, x):
+        # Scale matrix before matrix multiplication and bias
+        x = tf.matmul(x, self.kernel * self.wscale)
         x = tf.add(x, self.bias)
 
         return x
 
 
 #-------------------------------------------------------------------------
-""" Overloaded implementation of Conv2D layer for equalised learning rate,
-    taken from https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/keras/layers/convolutional.py """
+""" Overloaded implementation of Conv2D layer for equalised learning rate
+    by initialising with N(0, 1) and scale weights at run-time instead of
+    using He initialiser - prevents escalating signal magnitudes """
 
 class EqLrConv2D(tf.keras.layers.Conv2D):
 
@@ -38,14 +41,15 @@ class EqLrConv2D(tf.keras.layers.Conv2D):
         self.gain = gain
     
     def build(self, input_shape):
+        # Call layer's native build method to initialise weights
         super().build(input_shape)
         fan_in = tf.reduce_prod(tf.shape(self.kernel)[:-1])
-        self.wscale = self.gain / tf.sqrt(tf.cast(fan_in, tf.float32))
+
+        # Std dev multiplier from He initialiser
+        self.wscale = self.gain / tf.sqrt(tf.cast(fan_in, "float32"))
         
     def call(self, x):
-
-        """ Overloaded call method applies weight scale at runtime """
-
+        # Scale conv kernel before convolution and bias
         x = self._convolution_op(x, self.kernel * self.wscale)
         x = tf.add(x, self.bias)
 
@@ -53,8 +57,7 @@ class EqLrConv2D(tf.keras.layers.Conv2D):
 
 
 #-------------------------------------------------------------------------
-""" Fade in from ProgGAN and StyleGAN
-    - interpolates between two layers by factor alpha """
+""" Fade in - interpolates between two layers by factor alpha """
 
 def fade_in(alpha, old, new):
     with tf.name_scope("fade_in") as scope:
@@ -62,21 +65,32 @@ def fade_in(alpha, old, new):
 
 
 #-------------------------------------------------------------------------
-""" Minibatch standard deviation from ProgGAN and StyleGAN """
+""" Minibatch standard deviation from ProgGan and StyleGAN - increases
+    variation by appending feature statistics to discriminator """
 
-def mb_stddev(x, group_size=4):
+def mb_stddev(x, group_size=4, ch_size=1):
     with tf.name_scope("mb_stddev") as scope:
         dims = tf.shape(x)
         group_size = tf.reduce_min([group_size, dims[0]])
-        y = tf.reshape(x, [group_size, -1, dims[1], dims[2], dims[3]])
-        y = tf.reduce_mean(tf.math.reduce_std(y, axis=0), axis=[1, 2, 3], keepdims=True)
-        y = tf.tile(y, [group_size, dims[1], dims[2], 1])
-        """ Check average over channels """
+
+        # Split minibatches into G groups of M and channels into N groups of C as in
+        # https://github.com/NVlabs/stylegan/blob/master/training/networks_progan.py
+        y = tf.reshape(x, [group_size, -1, dims[1], dims[2], ch_size, dims[3] // ch_size]) # [G, M, H, W, N, C]
+
+        # Calculate std dev of each feature, then avg over group
+        y = tf.math.reduce_std(y, axis=0)                                                  # [M, H, W, N, C]
+        y = tf.reduce_mean(y, axis=[1, 2, 4], keepdims=True)                               # [M, 1, 1, N, 1]
+        y = tf.reduce_mean(y, axis=[4])                                                    # [M, 1, 1, N]
+
+        # Expand and append to features
+        y = tf.tile(y, [group_size, dims[1], dims[2], 1])                                  # [N, H, W, 1]
+
         return tf.concat([x, y], axis=-1, name=scope)
 
 
 #-------------------------------------------------------------------------
-""" Pixel normalisation from ProgGAN and StyleGAN mapping network """
+""" Pixel normalisation from ProgGAN - normalises each pixel's feature
+    vector to prevent escalation of signal magnitudes """
 
 def pixel_norm(x):
     with tf.name_scope("pixel_norm") as scope:

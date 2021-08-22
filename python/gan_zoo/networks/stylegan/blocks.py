@@ -14,9 +14,10 @@ class MappingNet(tf.keras.layers.Layer):
         self.lr_mul = 0.01
         std_init = 1 / self.lr_mul
         gain = tf.sqrt(2.0)
+        initialiser = tf.keras.initializers.RandomNormal(0, std_init)
 
-        self.dense = [EqLrDense(gain=gain, lr_mul=self.lr_mul, units=num_units, kernel_initializer=tf.keras.initializers.RandomNormal(0, std_init), name=f"dense_{i}") for i in range(num_layers - 1)]
-        self.dense.append(EqLrDense(gain=gain, lr_mul=self.lr_mul, units=latent_dim, kernel_initializer=tf.keras.initializers.RandomNormal(0, std_init), name=f"dense_{num_layers - 1}"))
+        self.dense = [EqLrDense(gain=gain, lr_mul=self.lr_mul, units=num_units, kernel_initializer=initialiser, name=f"dense_{i}") for i in range(num_layers - 1)]
+        self.dense.append(EqLrDense(gain=gain, lr_mul=self.lr_mul, units=latent_dim, kernel_initializer=initialiser, name=f"dense_{num_layers - 1}"))
 
     def call(self, z):
         w = pixel_norm(z)
@@ -55,7 +56,7 @@ class DiscriminatorBlock(tf.keras.layers.Layer):
     def call(self, x, fade_alpha=None, first_block=True):
 
         # If fade in, pass downsampled image into next block and cache
-        if first_block and fade_alpha != None and self.next_block != None:
+        if first_block and fade_alpha is not None and self.next_block is not None:
             next_rgb = self.downsample(x)
             next_rgb = tf.nn.leaky_relu(self.next_block.from_rgb(next_rgb), alpha=0.2)
 
@@ -70,7 +71,7 @@ class DiscriminatorBlock(tf.keras.layers.Layer):
             x = self.downsample(x)
 
             # If fade in, merge with cached layer
-            if first_block and fade_alpha != None and self.next_block != None:
+            if first_block and fade_alpha is not None and self.next_block is not None:
                 x = fade_in(fade_alpha, next_rgb, x)
             
             x = self.next_block(x, fade_alpha=None, first_block=False)
