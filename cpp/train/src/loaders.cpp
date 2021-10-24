@@ -190,7 +190,7 @@ tf::Status utils::WriteImage(
 
 	// Convert tensor to image
 	Output reshape = ops::Reshape(
-		root.WithOpName("reshape"), cast, ops::Const(root, { 32, 32, 3 }));
+		root.WithOpName("reshape"), cast, ops::Const(root, { 64, 64, 3 }));
 	Output image = ops::EncodePng(root.WithOpName("png_writer"), reshape);
 
 	/* Before running session, check for errors - otherwise can be hard to diagnose */
