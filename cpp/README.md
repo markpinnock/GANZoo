@@ -1,5 +1,5 @@
 # Tensorflow C++ usage instructions:
-First, build Tensorflow C++ libraires [using the guide here](./TF_INSTALL_GUIDE.md)
+First, build Tensorflow C++ libraries [using the guide here](./TF_INSTALL_GUIDE.md)
 
 # Install Protobuf
 You'll need to install Protobuf (this guide is tested with v3.9.2).
