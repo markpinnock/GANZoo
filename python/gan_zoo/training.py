@@ -6,8 +6,9 @@ import os
 import tensorflow as tf
 
 from training_loops import training_loop
-from networks.progressivegan.ProgGAN import ProgressiveGAN
-from networks.stylegan.StyleGAN import StyleGAN
+from networks.dcgan.dcgan import DCGAN
+from networks.progressivegan.proggan import ProgressiveGAN
+from networks.stylegan.stylegan import StyleGAN
 from utils.dataloaders import ImgLoader
 
 
@@ -24,7 +25,9 @@ if __name__ == "__main__":
     LATENT_SAMPLE = tf.random.normal([CONFIG["EXPT"]["NUM_EXAMPLES"], CONFIG["HYPERPARAMS"]["LATENT_DIM"]], dtype=tf.float32)
 
     # Create optimisers and compile model
-    if CONFIG["HYPERPARAMS"]["MODEL"] == "ProgGAN":
+    if CONFIG["HYPERPARAMS"]["MODEL"] == "DCGAN":
+        Model = DCGAN(config=CONFIG["HYPERPARAMS"])
+    elif CONFIG["HYPERPARAMS"]["MODEL"] == "ProgGAN":
         Model = ProgressiveGAN(config=CONFIG["HYPERPARAMS"])
     elif CONFIG["HYPERPARAMS"]["MODEL"] == "StyleGAN":
         Model = StyleGAN(config=CONFIG["HYPERPARAMS"])
@@ -43,7 +46,9 @@ if __name__ == "__main__":
 
     # Print model summary and save graph if necessary
     if CONFIG["EXPT"]["VERBOSE"]:
-        Model.set_scale(len(CONFIG["EXPT"]["SCALES"]) - 1, 1)
+        if CONFIG["HYPERPARAMS"]["MODEL"] != "DCGAN":
+            Model.set_scale(len(CONFIG["EXPT"]["SCALES"]) - 1, 1)
+
         Model.summary()
 
     if CONFIG["EXPT"]["GRAPH"]:
@@ -68,12 +73,12 @@ if __name__ == "__main__":
         CONFIG["EXPT"]["DATASET_SIZE"] = len(os.listdir(CONFIG["EXPT"]["DATA_PATH"]))
 
     DataLoader = ImgLoader(CONFIG["EXPT"])
-    res = CONFIG["EXPT"]["SCALES"][0]
+    res = 64#CONFIG["EXPT"]["SCALES"][0]
 
     if CONFIG["EXPT"]["FROM_RAM"]:
         train_ds = tf.data.Dataset.from_tensor_slices(
             DataLoader.data_loader(res=res)
-            ).shuffle(CONFIG["EXPT"]["DATASET_SIZE"]).batch(CONFIG["EXPT"]["MB_SIZE"][0] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(1)
+            ).shuffle(CONFIG["EXPT"]["DATASET_SIZE"]).batch(CONFIG["EXPT"]["MB_SIZE"] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(1)
     else:
         train_ds = tf.data.Dataset.from_generator(
             DataLoader.data_generator,
@@ -81,7 +86,7 @@ if __name__ == "__main__":
             ).repeat().batch(CONFIG["EXPT"]["MB_SIZE"][0] * CONFIG["HYPERPARAMS"]["N_CRITIC"]).prefetch(1)
 
     Model = training_loop(CONFIG["EXPT"], idx=0, Model=Model, data=train_ds, latent_sample=LATENT_SAMPLE, fade=False)
-
+    exit()
     for i in range(1, len(CONFIG["EXPT"]["SCALES"])):
         res = CONFIG["EXPT"]["SCALES"][i]
 

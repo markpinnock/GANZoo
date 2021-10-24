@@ -78,7 +78,7 @@ class BaseGAN(tf.keras.Model, abc.ABC):
         for idx in range(self.n_critic):
             # Select minibatch of real images and generate fake images
             d_real_batch = real_images[idx * mb_size:(idx + 1) * mb_size, :, :, :]
-            latent_noise = tf.random.normal((self.mb_size, self.latent_dims), dtype=tf.float32)
+            latent_noise = tf.random.normal((mb_size, self.latent_dims), dtype=tf.float32) # !!!!!!!!!!!!!!!!!!
             d_fake_images = self.Generator(latent_noise, training=True)
 
             # DiffAug if required
